@@ -29,8 +29,8 @@ test('geschatte1RM: 30 kg x 12 reps = 42', () => {
   assert.ok(bijna(L.geschatte1RM(30, 12), 42));
 });
 
-test('geschatte1RM: 1 herhaling geeft precies het gewicht', () => {
-  assert.ok(bijna(L.geschatte1RM(100, 1), 100));
+test('geschatte1RM: bekend Epley-geval 60 kg x 5 reps = 70', () => {
+  assert.ok(bijna(L.geschatte1RM(60, 5), 70));
 });
 
 test('besteSet1RM: kiest de set met de hoogste geschatte 1RM', () => {
@@ -72,7 +72,9 @@ test('progressie: lager dan vorige max is geen PR', () => {
 });
 
 test('progressie: onbekende oefening geeft lege lijst', () => {
-  assert.deepEqual(L.progressieVoorOefening(sessiesVb, 'bestaat-niet'), []);
+  // .length i.p.v. deepEqual([]): de functie draait in een aparte vm-realm,
+  // waardoor een leeg array niet reference-equal is aan [] uit dit proces.
+  assert.equal(L.progressieVoorOefening(sessiesVb, 'bestaat-niet').length, 0);
 });
 
 test('vorigeSet: laatste set uit meest recente eerdere sessie', () => {
