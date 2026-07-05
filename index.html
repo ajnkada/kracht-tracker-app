@@ -150,7 +150,40 @@
 
   // tijdelijke stubs zodat de app laadt zonder fouten; worden in latere taken vervangen
   function renderVandaag() { document.getElementById('tab-vandaag').innerHTML = '<h1>Vandaag</h1><p class="sub">nog te bouwen</p>'; }
-  function renderOefeningen() { document.getElementById('tab-oefeningen').innerHTML = '<h1>Oefeningen</h1><p class="sub">nog te bouwen</p>'; }
+  function renderOefeningen() {
+    const lijst = laadOefeningen();
+    const items = lijst.map(o => `
+      <div class="kaart rij">
+        <span>💪 ${o.naam}</span>
+        <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
+      </div>`).join('');
+    document.getElementById('tab-oefeningen').innerHTML = `
+      <h1>Oefeningen</h1>
+      <p class="sub">Kies bij "Vandaag" uit deze lijst, of voeg hier je eigen oefening toe.</p>
+      <div style="margin:14px 0">
+        <label class="veld">Nieuwe oefening
+          <input id="nieuwe-oefening" placeholder="bijv. Romanian deadlift">
+        </label>
+        <button style="margin-top:8px;width:100%" onclick="voegEigenOefeningToe()">+ Oefening toevoegen</button>
+      </div>
+      ${items || '<p class="grijs">Nog geen oefeningen.</p>'}
+    `;
+  }
+
+  function voegEigenOefeningToe() {
+    const input = document.getElementById('nieuwe-oefening');
+    const naam = input.value.trim();
+    if (!naam) return;
+    const lijst = laadOefeningen();
+    lijst.push({ id: nieuwId(), naam });
+    bewaarOefeningen(lijst);
+    renderOefeningen();
+  }
+
+  function verwijderOefening(id) {
+    bewaarOefeningen(laadOefeningen().filter(o => o.id !== id));
+    renderOefeningen();
+  }
   function renderVoortgang() { document.getElementById('tab-voortgang').innerHTML = '<h1>Voortgang</h1><p class="sub">nog te bouwen</p>'; }
 
   zaaiStartlijst();
