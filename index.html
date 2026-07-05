@@ -39,6 +39,7 @@
     .progtabel { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
     .progtabel th { text-align:left; color:var(--grijs); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; padding:4px 6px; border-bottom:1px solid var(--line); }
     .progtabel td { padding:6px; border-bottom:1px solid #1e293b; }
+    .prtag { color:var(--goud); font-size:10px; font-weight:700; border:1px solid var(--goud); border-radius:4px; padding:0 3px; vertical-align:middle; }
     #rustklok { position:fixed; left:0; right:0; bottom:47px; background:#0b1220; border-top:1px solid var(--line); padding:8px 12px; display:flex; align-items:center; gap:10px; z-index:40; max-width:480px; margin:0 auto; }
     #rustklok .tijd { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; min-width:64px; color:var(--accent); }
     #viering { position:fixed; top:0; left:0; right:0; z-index:60; display:flex; justify-content:center; align-items:flex-start; pointer-events:none; }
@@ -89,7 +90,7 @@
       .filter(s => s.oefeningen.some(o => o.exerciseId === exerciseId && o.sets.length > 0))
       .slice()
       .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0);
-    let max = -Infinity;
+    let max = -Infinity, maxGewicht = -Infinity;
     const punten = [];
     for (const s of relevant) {
       const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
@@ -97,7 +98,9 @@
       const gewicht = Math.max(...o.sets.map(x => x.kg));
       const isPR = e1rm > max;
       if (isPR) max = e1rm;
-      punten.push({ datum: s.datum, e1rm, gewicht, isPR });
+      const isGewichtPR = gewicht > maxGewicht;
+      if (isGewichtPR) maxGewicht = gewicht;
+      punten.push({ datum: s.datum, e1rm, gewicht, isPR, isGewichtPR });
     }
     return punten;
   }
@@ -640,7 +643,7 @@
           </div>
           <table class="progtabel">
             <thead><tr><th>kg</th><th>1RM</th><th>datum</th></tr></thead>
-            <tbody>${punten.slice().reverse().map(p => `<tr><td>${formatKg(p.gewicht)}</td><td>${formatKg(p.e1rm)}${p.isPR ? ' 🏅' : ''}</td><td class="grijs">${datumKort(p.datum)}</td></tr>`).join('')}</tbody>
+            <tbody>${punten.slice().reverse().map(p => `<tr><td>${formatKg(p.gewicht)}${p.isGewichtPR ? ' <span class="prtag">PR</span>' : ''}</td><td>${formatKg(p.e1rm)}${p.isPR ? ' 🏅' : ''}</td><td class="grijs">${datumKort(p.datum)}</td></tr>`).join('')}</tbody>
           </table>
         </div>`;
     }

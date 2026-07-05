@@ -71,6 +71,18 @@ test('progressie: lager dan vorige max is geen PR', () => {
   assert.equal(punten[1].isPR, false);
 });
 
+test('progressie: isGewichtPR markeert een nieuw zwaarste-gewicht-record', () => {
+  const s = [
+    { id: 'a', datum: '2026-07-01', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 40, reps: 5 } ] } ] },
+    { id: 'b', datum: '2026-07-02', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 40, reps: 8 } ] } ] },
+    { id: 'c', datum: '2026-07-03', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 45, reps: 5 } ] } ] },
+  ];
+  const p = L.progressieVoorOefening(s, 'e1');
+  assert.equal(p[0].isGewichtPR, true);
+  assert.equal(p[1].isGewichtPR, false);
+  assert.equal(p[2].isGewichtPR, true);
+});
+
 test('progressie: gewicht = zwaarste kg van de sessie', () => {
   const s = [ { id: 'a', datum: '2026-07-01', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 30, reps: 10 }, { kg: 35, reps: 5 } ] } ] } ];
   const punten = L.progressieVoorOefening(s, 'e1');
