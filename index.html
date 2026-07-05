@@ -95,6 +95,48 @@
   }
   // ===== LOGIC END =====
 
+  // ---- Opslag (localStorage) ----
+  const STARTLIJST = ['Bankdrukken','Squat','Deadlift','Schouderpers','Lat pulldown','Barbell row','Biceps curl','Triceps pushdown'];
+
+  function nieuwId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+  function vandaagISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+  function laadOefeningen() {
+    return JSON.parse(localStorage.getItem('kt_exercises') || '[]');
+  }
+  function bewaarOefeningen(arr) {
+    localStorage.setItem('kt_exercises', JSON.stringify(arr));
+  }
+  function laadSessies() {
+    return JSON.parse(localStorage.getItem('kt_sessions') || '[]');
+  }
+  function bewaarSessies(arr) {
+    localStorage.setItem('kt_sessions', JSON.stringify(arr));
+  }
+  function zaaiStartlijst() {
+    if (laadOefeningen().length === 0) {
+      bewaarOefeningen(STARTLIJST.map(naam => ({ id: nieuwId(), naam })));
+    }
+  }
+
+  // ---- Sessie-helpers ----
+  function huidigeSessie() {
+    return laadSessies().find(s => s.datum === vandaagISO()) || null;
+  }
+  function zorgVoorSessieVandaag() {
+    const sessies = laadSessies();
+    let s = sessies.find(s => s.datum === vandaagISO());
+    if (!s) {
+      s = { id: nieuwId(), datum: vandaagISO(), oefeningen: [] };
+      sessies.push(s);
+      bewaarSessies(sessies);
+    }
+    return s;
+  }
+
   function toonTab(naam) {
     for (const s of document.querySelectorAll('main > section')) s.classList.add('verborgen');
     document.getElementById('tab-' + naam).classList.remove('verborgen');
@@ -111,6 +153,7 @@
   function renderOefeningen() { document.getElementById('tab-oefeningen').innerHTML = '<h1>Oefeningen</h1><p class="sub">nog te bouwen</p>'; }
   function renderVoortgang() { document.getElementById('tab-voortgang').innerHTML = '<h1>Voortgang</h1><p class="sub">nog te bouwen</p>'; }
 
+  zaaiStartlijst();
   renderVandaag();
   </script>
 </body>
