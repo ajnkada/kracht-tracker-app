@@ -74,3 +74,18 @@ test('progressie: lager dan vorige max is geen PR', () => {
 test('progressie: onbekende oefening geeft lege lijst', () => {
   assert.deepEqual(L.progressieVoorOefening(sessiesVb, 'bestaat-niet'), []);
 });
+
+test('vorigeSet: laatste set uit meest recente eerdere sessie', () => {
+  const s = L.vorigeSet(sessiesVb, 'e1', '2026-07-05');
+  assert.deepEqual(s, { kg: 30, reps: 12 });
+});
+
+test('vorigeSet: kijkt alleen naar sessies vóór de huidige datum', () => {
+  const s = L.vorigeSet(sessiesVb, 'e1', '2026-07-02');
+  assert.deepEqual(s, { kg: 30, reps: 10 });
+});
+
+test('vorigeSet: geen eerdere sessie geeft null', () => {
+  const s = L.vorigeSet(sessiesVb, 'e1', '2026-07-01');
+  assert.equal(s, null);
+});

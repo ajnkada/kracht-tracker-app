@@ -74,6 +74,17 @@
     }
     return punten;
   }
+
+  // Laatste set van deze oefening uit de meest recente sessie vóór huidigeDatum, of null.
+  function vorigeSet(sessies, exerciseId, huidigeDatum) {
+    const eerder = sessies
+      .filter(s => s.datum < huidigeDatum && s.oefeningen.some(o => o.exerciseId === exerciseId && o.sets.length > 0))
+      .slice()
+      .sort((a, b) => a.datum < b.datum ? 1 : a.datum > b.datum ? -1 : 0);
+    if (eerder.length === 0) return null;
+    const o = eerder[0].oefeningen.find(o => o.exerciseId === exerciseId);
+    return o.sets[o.sets.length - 1];
+  }
   // ===== LOGIC END =====
 
   function toonTab(naam) {
