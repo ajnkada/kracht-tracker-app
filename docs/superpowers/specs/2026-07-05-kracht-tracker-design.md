@@ -148,3 +148,7 @@ Na goedkeuring en bouw toegevoegd op verzoek:
     andere datum loggen" nu wél in scope (bewerken/verwijderen van losse sets nog niet).
 12. **Spiergroep in keuzelijst.** De oefening-keuzelijst op Vandaag toont de
     spiergroep(en) achter de naam.
+13. **Gewicht-PR + tabel + timer-fix.** De PR-viering toont nu zowel 1RM- als
+    gewicht-records (`isNieuwGewichtPR`). Voortgang heeft onder de tellers een
+    sessietabel (reps: kg | 1RM | datum, tijd: tijd | datum). De rustklok-"klaar"-
+    balk wordt herbouwd met een duidelijke "sluiten ✕"-knop.
