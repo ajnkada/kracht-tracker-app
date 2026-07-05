@@ -33,6 +33,9 @@
     nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:12px 4px; font-size:12px; }
     nav button.actief { color: var(--accent); }
     .verborgen { display:none !important; }
+    #login-scherm { display:none; max-width:480px; margin:0 auto; }
+    body.uitgelogd #login-scherm { display:block; }
+    body.uitgelogd main, body.uitgelogd nav, body.uitgelogd #rustklok, body.uitgelogd #viering { display:none !important; }
     .badge { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--paars); font-size:11px; padding:1px 8px; border-radius:999px; vertical-align:middle; }
     .chip { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--grijs); font-size:12px; padding:5px 11px; border-radius:999px; cursor:pointer; user-select:none; }
     .chip.aan { background:var(--paars); color:#1a1030; border-color:var(--paars); }
@@ -51,12 +54,24 @@
     @keyframes pop { from { transform:scale(.6); opacity:0 } to { transform:scale(1); opacity:1 } }
   </style>
 </head>
-<body>
+<body class="uitgelogd">
+  <div id="login-scherm">
+    <div style="max-width:360px;margin:0 auto;padding:48px 20px;text-align:center">
+      <div style="font-size:56px">🏋️</div>
+      <h1 style="margin-top:8px">Kracht-tracker</h1>
+      <p class="sub">Log in met je e-mail — je krijgt een inloglink toegestuurd (geen wachtwoord nodig).</p>
+      <input id="login-email" type="email" inputmode="email" autocomplete="email" placeholder="jouw@email.nl" style="margin-top:18px">
+      <button style="margin-top:10px;width:100%" onclick="stuurInloglink()">Stuur inloglink</button>
+      <p id="login-status" class="grijs" style="margin-top:14px;min-height:20px"></p>
+    </div>
+  </div>
+
   <main>
     <section id="tab-vandaag" class="scherm"></section>
     <section id="tab-oefeningen" class="scherm verborgen"></section>
     <section id="tab-voortgang" class="scherm verborgen"></section>
     <section id="tab-records" class="scherm verborgen"></section>
+    <section id="tab-account" class="scherm verborgen"></section>
   </main>
 
   <div id="rustklok" class="verborgen"></div>
@@ -67,8 +82,10 @@
     <button data-tab="oefeningen" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
     <button data-tab="voortgang" onclick="toonTab('voortgang')">📈 Voortgang</button>
     <button data-tab="records" onclick="toonTab('records')">🏅 Records</button>
+    <button data-tab="account" onclick="toonTab('account')">👤 Account</button>
   </nav>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
   // ===== LOGIC START =====
   // Geschatte 1RM volgens Epley: gewicht x (1 + reps/30)
@@ -372,6 +389,19 @@
     if (naam === 'oefeningen') renderOefeningen();
     if (naam === 'voortgang') renderVoortgang();
     if (naam === 'records') renderRecords();
+    if (naam === 'account') renderAccount();
+  }
+
+  function renderAccount() {
+    const email = huidigeGebruiker ? huidigeGebruiker.email : '';
+    document.getElementById('tab-account').innerHTML = `
+      <h1>Account</h1>
+      <div class="kaart" style="margin-top:12px">
+        <div class="grijs">Ingelogd als</div>
+        <div style="font-weight:600;word-break:break-all">${escapeHtml(email)}</div>
+      </div>
+      <button class="ghost" style="width:100%;margin-top:8px;color:#f87171;border-color:#f87171" onclick="uitloggen()">Uitloggen</button>
+    `;
   }
 
   function datumKort(iso) {
@@ -790,10 +820,48 @@
     } catch (e) {}
   }
 
-  zaaiStartlijst();
-  migreerOefeningen();
-  vulStartlijstAan();
-  renderVandaag();
+  // ---- Supabase / authenticatie ----
+  const SUPABASE_URL = 'https://yuyibqfykdfzmpeqfqtb.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_Z1LqzJYtWC2GUv8V3Kceug_6wG44pat';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  let huidigeGebruiker = null;
+  let appGestart = false;
+
+  async function stuurInloglink() {
+    const email = (document.getElementById('login-email').value || '').trim();
+    const st = document.getElementById('login-status');
+    if (!email) { st.textContent = 'Vul je e-mailadres in.'; return; }
+    st.textContent = 'Bezig met versturen…';
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href.split('#')[0] } });
+    st.textContent = error ? ('Fout: ' + error.message) : '✅ Check je mail! Klik op de inloglink om in te loggen.';
+  }
+  async function uitloggen() {
+    await sb.auth.signOut();
+  }
+  function toonIngelogd(ingelogd) {
+    document.body.classList.toggle('uitgelogd', !ingelogd);
+  }
+  function startApp() {
+    if (appGestart) return;
+    appGestart = true;
+    zaaiStartlijst();
+    migreerOefeningen();
+    vulStartlijstAan();
+    renderVandaag();
+  }
+
+  sb.auth.onAuthStateChange((event, session) => {
+    huidigeGebruiker = session ? session.user : null;
+    toonIngelogd(!!session);
+    if (session) startApp(); else appGestart = false;
+  });
+
+  (async () => {
+    const { data } = await sb.auth.getSession();
+    huidigeGebruiker = data.session ? data.session.user : null;
+    toonIngelogd(!!data.session);
+    if (data.session) startApp();
+  })();
   </script>
 </body>
 </html>
