@@ -49,6 +49,12 @@
   function geschatte1RM(kg, reps) {
     return kg * (1 + reps / 30);
   }
+
+  // Hoogste geschatte 1RM over alle sets van een oefening in één sessie
+  function besteSet1RM(sets) {
+    if (!sets || sets.length === 0) return 0;
+    return Math.max(...sets.map(s => geschatte1RM(s.kg, s.reps)));
+  }
   // ===== LOGIC END =====
 
   function toonTab(naam) {

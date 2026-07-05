@@ -32,3 +32,12 @@ test('geschatte1RM: 30 kg x 12 reps = 42', () => {
 test('geschatte1RM: 1 herhaling geeft precies het gewicht', () => {
   assert.ok(bijna(L.geschatte1RM(100, 1), 100));
 });
+
+test('besteSet1RM: kiest de set met de hoogste geschatte 1RM', () => {
+  const sets = [ { kg: 30, reps: 10 }, { kg: 35, reps: 5 } ];
+  assert.ok(bijna(L.besteSet1RM(sets), 35 * (1 + 5 / 30)));
+});
+
+test('besteSet1RM: lege set-lijst geeft 0', () => {
+  assert.equal(L.besteSet1RM([]), 0);
+});
