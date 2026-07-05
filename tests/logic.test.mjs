@@ -71,6 +71,12 @@ test('progressie: lager dan vorige max is geen PR', () => {
   assert.equal(punten[1].isPR, false);
 });
 
+test('progressie: gewicht = zwaarste kg van de sessie', () => {
+  const s = [ { id: 'a', datum: '2026-07-01', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 30, reps: 10 }, { kg: 35, reps: 5 } ] } ] } ];
+  const punten = L.progressieVoorOefening(s, 'e1');
+  assert.equal(punten[0].gewicht, 35);
+});
+
 test('progressie: onbekende oefening geeft lege lijst', () => {
   // .length i.p.v. deepEqual([]): de functie draait in een aparte vm-realm,
   // waardoor een leeg array niet reference-equal is aan [] uit dit proces.

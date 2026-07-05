@@ -33,6 +33,7 @@
     nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:12px 4px; font-size:12px; }
     nav button.actief { color: var(--accent); }
     .verborgen { display:none; }
+    .badge { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--paars); font-size:11px; padding:1px 8px; border-radius:999px; vertical-align:middle; }
   </style>
 </head>
 <body>
@@ -61,7 +62,8 @@
     return Math.max(...sets.map(s => geschatte1RM(s.kg, s.reps)));
   }
 
-  // Grafiekpunten voor één oefening: [{ datum, e1rm, isPR }] op datum oplopend.
+  // Grafiekpunten voor één oefening: [{ datum, e1rm, gewicht, isPR }] op datum oplopend.
+  // e1rm = geschatte 1RM van de beste set; gewicht = zwaarste kg van die sessie.
   // isPR = geschatte 1RM is strikt hoger dan alle eerdere sessies.
   function progressieVoorOefening(sessies, exerciseId) {
     const relevant = sessies
@@ -73,9 +75,10 @@
     for (const s of relevant) {
       const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
       const e1rm = besteSet1RM(o.sets);
+      const gewicht = Math.max(...o.sets.map(x => x.kg));
       const isPR = e1rm > max;
       if (isPR) max = e1rm;
-      punten.push({ datum: s.datum, e1rm, isPR });
+      punten.push({ datum: s.datum, e1rm, gewicht, isPR });
     }
     return punten;
   }
@@ -107,7 +110,17 @@
   }
 
   // ---- Opslag (localStorage) ----
-  const STARTLIJST = ['Bankdrukken','Squat','Deadlift','Schouderpers','Lat pulldown','Barbell row','Biceps curl','Triceps pushdown'];
+  const SPIERGROEPEN = ['Bicep','Tricep','Borst','Rug','Schouders','Benen','Buik','Onderarmen'];
+  const STARTLIJST = [
+    { naam: 'Bankdrukken', spiergroep: 'Borst' },
+    { naam: 'Squat', spiergroep: 'Benen' },
+    { naam: 'Deadlift', spiergroep: 'Rug' },
+    { naam: 'Schouderpers', spiergroep: 'Schouders' },
+    { naam: 'Lat pulldown', spiergroep: 'Rug' },
+    { naam: 'Barbell row', spiergroep: 'Rug' },
+    { naam: 'Biceps curl', spiergroep: 'Bicep' },
+    { naam: 'Triceps pushdown', spiergroep: 'Tricep' },
+  ];
 
   function nieuwId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -129,8 +142,21 @@
   }
   function zaaiStartlijst() {
     if (laadOefeningen().length === 0) {
-      bewaarOefeningen(STARTLIJST.map(naam => ({ id: nieuwId(), naam })));
+      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: o.naam, spiergroep: o.spiergroep })));
     }
+  }
+  // Vul een spiergroep aan voor oefeningen die van vóór deze functie stammen.
+  function migreerSpiergroepen() {
+    const lijst = laadOefeningen();
+    let gewijzigd = false;
+    for (const o of lijst) {
+      if (!o.spiergroep) {
+        const match = STARTLIJST.find(s => s.naam === o.naam);
+        o.spiergroep = match ? match.spiergroep : 'Overig';
+        gewijzigd = true;
+      }
+    }
+    if (gewijzigd) bewaarOefeningen(lijst);
   }
 
   // ---- Sessie-helpers ----
@@ -164,6 +190,7 @@
     const sessie = huidigeSessie();
     const alleOef = laadOefeningen();
     const naamVan = id => (alleOef.find(o => o.id === id) || {}).naam || 'onbekend';
+    const groepVan = id => (alleOef.find(o => o.id === id) || {}).spiergroep || '';
     const sessies = laadSessies();
 
     let kaarten = '';
@@ -177,7 +204,7 @@
           </div>`).join('');
         return `
           <div class="kaart">
-            <div class="rij"><b>🏋️ ${escapeHtml(naamVan(o.exerciseId))}</b><span class="grijs">${vorigeTekst}</span></div>
+            <div class="rij"><span><b>🏋️ ${escapeHtml(naamVan(o.exerciseId))}</b>${groepVan(o.exerciseId) ? ` <span class="badge">${escapeHtml(groepVan(o.exerciseId))}</span>` : ''}</span><span class="grijs">${vorigeTekst}</span></div>
             ${setRijen}
             <div class="rij" style="margin-top:10px;gap:8px">
               <label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
@@ -235,15 +262,19 @@
     const lijst = laadOefeningen();
     const items = lijst.map(o => `
       <div class="kaart rij">
-        <span>💪 ${escapeHtml(o.naam)}</span>
+        <span>💪 ${escapeHtml(o.naam)} <span class="badge">${escapeHtml(o.spiergroep || 'Overig')}</span></span>
         <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
       </div>`).join('');
+    const groepOpties = SPIERGROEPEN.map(g => `<option value="${g}">${g}</option>`).join('');
     document.getElementById('tab-oefeningen').innerHTML = `
       <h1>Oefeningen</h1>
       <p class="sub">Kies bij "Vandaag" uit deze lijst, of voeg hier je eigen oefening toe.</p>
       <div style="margin:14px 0">
         <label class="veld">Nieuwe oefening
           <input id="nieuwe-oefening" placeholder="bijv. Romanian deadlift">
+        </label>
+        <label class="veld" style="margin-top:8px">Spiergroep
+          <select id="nieuwe-spiergroep">${groepOpties}</select>
         </label>
         <button style="margin-top:8px;width:100%" onclick="voegEigenOefeningToe()">+ Oefening toevoegen</button>
       </div>
@@ -255,8 +286,9 @@
     const input = document.getElementById('nieuwe-oefening');
     const naam = input.value.trim();
     if (!naam) return;
+    const spiergroep = document.getElementById('nieuwe-spiergroep').value;
     const lijst = laadOefeningen();
-    lijst.push({ id: nieuwId(), naam });
+    lijst.push({ id: nieuwId(), naam, spiergroep });
     bewaarOefeningen(lijst);
     renderOefeningen();
   }
@@ -275,15 +307,18 @@
   function tekenGrafiek(punten) {
     const w = 300, h = 130, pad = 18;
     if (punten.length === 0) return '';
-    const vals = punten.map(p => p.e1rm);
+    // beide series delen dezelfde kg-as, zodat de lijnen door elkaar lopen
+    const vals = punten.flatMap(p => [p.e1rm, p.gewicht]);
     const min = Math.min(...vals), max = Math.max(...vals);
     const range = (max - min) || 1;
     const n = punten.length;
     const x = i => n === 1 ? w / 2 : pad + i * (w - 2 * pad) / (n - 1);
     const y = v => pad + (1 - (v - min) / range) * (h - 2 * pad);
-    const lijn = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.e1rm)}`).join(' ')}" fill="none" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
-    const dots = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="${p.isPR ? 5 : 3.5}" fill="${p.isPR ? '#fbbf24' : '#a78bfa'}"/>`).join('');
-    return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${lijn}${dots}</svg>`;
+    const lijnGewicht = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.gewicht)}`).join(' ')}" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const dotsGewicht = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.gewicht)}" r="2.5" fill="#38bdf8"/>`).join('');
+    const lijn1rm = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.e1rm)}`).join(' ')}" fill="none" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const dots1rm = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="${p.isPR ? 5 : 3.5}" fill="${p.isPR ? '#fbbf24' : '#a78bfa'}"/>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${lijnGewicht}${dotsGewicht}${lijn1rm}${dots1rm}</svg>`;
   }
 
   function renderVoortgang() {
@@ -310,6 +345,11 @@
           </div>
           <div class="grijs" style="margin-bottom:10px">geschatte kracht (1RM) · t.o.v. vorige sessie</div>
           ${tekenGrafiek(punten)}
+          <div style="display:flex;gap:14px;margin-top:6px;font-size:11px">
+            <span style="color:#a78bfa">▬ geschatte 1RM</span>
+            <span style="color:#38bdf8">╌ werkelijk gewicht</span>
+            <span style="color:#fbbf24">● PR</span>
+          </div>
           <div class="rij" style="gap:8px;margin-top:14px">
             <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
             <div class="stat"><b>${prs}</b><br><span>PR's 🏅</span></div>
@@ -325,6 +365,7 @@
   }
 
   zaaiStartlijst();
+  migreerSpiergroepen();
   renderVandaag();
   </script>
 </body>
