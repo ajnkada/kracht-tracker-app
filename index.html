@@ -149,7 +149,75 @@
   }
 
   // tijdelijke stubs zodat de app laadt zonder fouten; worden in latere taken vervangen
-  function renderVandaag() { document.getElementById('tab-vandaag').innerHTML = '<h1>Vandaag</h1><p class="sub">nog te bouwen</p>'; }
+  function renderVandaag() {
+    const sessie = huidigeSessie();
+    const alleOef = laadOefeningen();
+    const naamVan = id => (alleOef.find(o => o.id === id) || {}).naam || 'onbekend';
+    const sessies = laadSessies();
+
+    let kaarten = '';
+    if (sessie && sessie.oefeningen.length > 0) {
+      kaarten = sessie.oefeningen.map(o => {
+        const vorige = vorigeSet(sessies, o.exerciseId, vandaagISO());
+        const vorigeTekst = vorige ? `vorige: ${formatKg(vorige.kg)} kg × ${vorige.reps}` : 'geen eerdere data';
+        const setRijen = o.sets.map((s, i) => `
+          <div class="rij grijs" style="padding:3px 0">
+            <span>Set ${i + 1}</span><span>${formatKg(s.kg)} kg × ${s.reps}</span>
+          </div>`).join('');
+        return `
+          <div class="kaart">
+            <div class="rij"><b>🏋️ ${naamVan(o.exerciseId)}</b><span class="grijs">${vorigeTekst}</span></div>
+            ${setRijen}
+            <div class="rij" style="margin-top:10px;gap:8px">
+              <label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
+              <label class="veld" style="flex:1">reps<input id="reps-${o.exerciseId}" type="number" inputmode="numeric"></label>
+              <button class="mini" style="align-self:flex-end" onclick="voegSetToe('${o.exerciseId}')">+ set</button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    const alGekozen = sessie ? sessie.oefeningen.map(o => o.exerciseId) : [];
+    const opties = alleOef.filter(o => !alGekozen.includes(o.id))
+      .map(o => `<option value="${o.id}">${o.naam}</option>`).join('');
+    const picker = opties ? `
+      <div class="rij" style="gap:8px;margin-top:8px">
+        <select id="oefening-keuze" style="flex:1">${opties}</select>
+        <button onclick="voegOefeningToe()">+ Oefening</button>
+      </div>` : '<p class="grijs">Alle oefeningen zitten al in deze sessie.</p>';
+
+    document.getElementById('tab-vandaag').innerHTML = `
+      <h1>Vandaag</h1>
+      <p class="sub">${new Date().toLocaleDateString('nl-NL', { weekday:'long', day:'numeric', month:'long' })}</p>
+      <div style="margin-top:14px">${kaarten || '<p class="grijs">Nog niets gelogd vandaag. Voeg een oefening toe 👇</p>'}</div>
+      ${picker}
+    `;
+  }
+
+  function voegOefeningToe() {
+    const keuze = document.getElementById('oefening-keuze');
+    if (!keuze || !keuze.value) return;
+    const sessie = zorgVoorSessieVandaag();
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.id === sessie.id);
+    if (!s.oefeningen.some(o => o.exerciseId === keuze.value)) {
+      s.oefeningen.push({ exerciseId: keuze.value, sets: [] });
+      bewaarSessies(sessies);
+    }
+    renderVandaag();
+  }
+
+  function voegSetToe(exerciseId) {
+    const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
+    const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
+    if (!(kg > 0) || !(reps > 0)) return;
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.datum === vandaagISO());
+    const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+    o.sets.push({ kg, reps });
+    bewaarSessies(sessies);
+    renderVandaag();
+  }
   function renderOefeningen() {
     const lijst = laadOefeningen();
     const items = lijst.map(o => `
