@@ -101,3 +101,17 @@ sessions:  [ { id, datum, oefeningen: [ { exerciseId, sets: [ { kg, reps } ] } ]
 - Pond/lbs-omschakelaar.
 - Volume-tabblad (kan later; berekening is al voorbereid in het datamodel).
 - Sessies op een andere datum dan vandaag loggen/bewerken.
+
+## Toevoegingen na het v1-ontwerp (2026-07-05)
+
+Na goedkeuring en bouw toegevoegd op verzoek:
+
+1. **Spiergroep per oefening.** Elke oefening heeft een `spiergroep`-veld
+   (Bicep, Tricep, Borst, Rug, Schouders, Benen, Buik, Onderarmen). De startlijst
+   is toegewezen; bij een eigen oefening kies je de groep in een keuzelijst. De
+   groep verschijnt als badge in de Oefeningen- en Vandaag-tab. `migreerSpiergroepen()`
+   vult de groep aan voor oefeningen die van vóór deze feature stammen.
+2. **Tweede grafieklijn: werkelijk gewicht.** `progressieVoorOefening` geeft nu
+   ook `gewicht` (het zwaarste kg van die sessie). De Voortgang-grafiek tekent die
+   als tweede lijn (blauw, gestippeld) op dezelfde kg-as als de 1RM-lijn, met legenda.
+   De gouden PR-stippen blijven op de 1RM-lijn.
