@@ -137,3 +137,14 @@ Na goedkeuring en bouw toegevoegd op verzoek:
 9. **Grotere startlijst.** ~42 oefeningen met minstens ~6 per spiergroep, inclusief
    de tijd-oefeningen Plank, Side plank, Farmer's walk en Dead hang.
    `migreerOefeningen` migreert oude data (enkelvoud → lijst, type, doel1rm → doel).
+   `vulStartlijstAan` (via `STARTLIJST_VERSIE`) plaatst nieuwe startlijst-oefeningen
+   eenmalig bij bij bestaande gebruikers.
+10. **Sluitbare meldingen.** PR-banner en rustklok hebben een × om weg te klikken;
+    de banner-weergave is gefixt (werd platgedrukt) en de rustklok blijft op "klaar!"
+    staan tot je 'm sluit.
+11. **Datumnavigatie (Vandaag).** Linksboven een datumkiezer met ‹/› en date-input
+    om eerdere trainingen in te vullen (toekomst geblokkeerd). Loggen gebeurt op de
+    gekozen datum; de rustklok start alleen bij vandaag. Hiermee is "sessies op een
+    andere datum loggen" nu wél in scope (bewerken/verwijderen van losse sets nog niet).
+12. **Spiergroep in keuzelijst.** De oefening-keuzelijst op Vandaag toont de
+    spiergroep(en) achter de naam.
