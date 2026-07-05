@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <title>Kracht-tracker</title>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --tekst:#e2e8f0; --grijs:#64748b; --accent:#38bdf8; --paars:#a78bfa; --goud:#fbbf24; --groen:#34d399; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--tekst); font-family: system-ui, -apple-system, sans-serif; padding-bottom: 72px; -webkit-tap-highlight-color: transparent; }
+    .scherm { max-width: 480px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .sub { color: var(--grijs); font-size: 13px; }
+    .kaart { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .rij { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    label.veld { display:flex; flex-direction:column; font-size:11px; color:var(--grijs); gap:4px; }
+    input, select { background:#0b1220; border:1px solid var(--line); color:var(--tekst); border-radius:8px; padding:10px; font-size:16px; width:100%; }
+    button { background: var(--accent); color:#06263a; border:none; border-radius:8px; padding:10px 14px; font-size:14px; font-weight:600; cursor:pointer; }
+    button.ghost { background: transparent; color: var(--accent); border:1.5px dashed var(--line); width:100%; padding:12px; }
+    button.mini { padding:8px 10px; font-size:13px; }
+    button.gevaar { background: transparent; color:#f87171; border:none; }
+    .grijs { color: var(--grijs); font-size:12px; }
+    .stat { flex:1; background:var(--card); border-radius:10px; padding:10px; text-align:center; }
+    .stat b { font-size:18px; }
+    .stat span { font-size:10px; color:var(--grijs); }
+    nav { position: fixed; bottom:0; left:0; right:0; background:#0b1220; border-top:1px solid var(--line); display:flex; }
+    nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:12px 4px; font-size:12px; }
+    nav button.actief { color: var(--accent); }
+    .verborgen { display:none; }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="tab-vandaag" class="scherm"></section>
+    <section id="tab-oefeningen" class="scherm verborgen"></section>
+    <section id="tab-voortgang" class="scherm verborgen"></section>
+  </main>
+
+  <nav>
+    <button data-tab="vandaag" class="actief" onclick="toonTab('vandaag')">📋 Vandaag</button>
+    <button data-tab="oefeningen" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
+    <button data-tab="voortgang" onclick="toonTab('voortgang')">📈 Voortgang</button>
+  </nav>
+
+  <script>
+  // ===== LOGIC START =====
+  // (pure reken-functies komen hier in latere taken)
+  // ===== LOGIC END =====
+
+  function toonTab(naam) {
+    for (const s of document.querySelectorAll('main > section')) s.classList.add('verborgen');
+    document.getElementById('tab-' + naam).classList.remove('verborgen');
+    for (const b of document.querySelectorAll('nav button')) {
+      b.classList.toggle('actief', b.dataset.tab === naam);
+    }
+    if (naam === 'vandaag') renderVandaag();
+    if (naam === 'oefeningen') renderOefeningen();
+    if (naam === 'voortgang') renderVoortgang();
+  }
+
+  // tijdelijke stubs zodat de app laadt zonder fouten; worden in latere taken vervangen
+  function renderVandaag() { document.getElementById('tab-vandaag').innerHTML = '<h1>Vandaag</h1><p class="sub">nog te bouwen</p>'; }
+  function renderOefeningen() { document.getElementById('tab-oefeningen').innerHTML = '<h1>Oefeningen</h1><p class="sub">nog te bouwen</p>'; }
+  function renderVoortgang() { document.getElementById('tab-voortgang').innerHTML = '<h1>Voortgang</h1><p class="sub">nog te bouwen</p>'; }
+
+  renderVandaag();
+  </script>
+</body>
+</html>
