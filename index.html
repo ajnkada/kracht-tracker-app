@@ -34,6 +34,13 @@
     nav button.actief { color: var(--accent); }
     .verborgen { display:none; }
     .badge { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--paars); font-size:11px; padding:1px 8px; border-radius:999px; vertical-align:middle; }
+    #rustklok { position:fixed; left:0; right:0; bottom:47px; background:#0b1220; border-top:1px solid var(--line); padding:8px 12px; display:flex; align-items:center; gap:10px; z-index:40; max-width:480px; margin:0 auto; }
+    #rustklok .tijd { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; min-width:64px; color:var(--accent); }
+    #viering { position:fixed; inset:0 0 auto 0; height:0; pointer-events:none; z-index:60; display:flex; justify-content:center; }
+    .viering-banner { margin-top:18px; background:var(--paars); color:#1a1030; font-weight:700; padding:10px 18px; border-radius:999px; box-shadow:0 6px 20px rgba(0,0,0,.45); animation:pop .3s ease; }
+    .confetti { position:fixed; top:-12px; width:8px; height:13px; border-radius:2px; opacity:.9; animation:vallen linear forwards; }
+    @keyframes vallen { to { transform:translateY(100vh) rotate(540deg); opacity:0; } }
+    @keyframes pop { from { transform:scale(.6); opacity:0 } to { transform:scale(1); opacity:1 } }
   </style>
 </head>
 <body>
@@ -41,12 +48,17 @@
     <section id="tab-vandaag" class="scherm"></section>
     <section id="tab-oefeningen" class="scherm verborgen"></section>
     <section id="tab-voortgang" class="scherm verborgen"></section>
+    <section id="tab-records" class="scherm verborgen"></section>
   </main>
+
+  <div id="rustklok" class="verborgen"></div>
+  <div id="viering" class="verborgen"></div>
 
   <nav>
     <button data-tab="vandaag" class="actief" onclick="toonTab('vandaag')">📋 Vandaag</button>
     <button data-tab="oefeningen" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
     <button data-tab="voortgang" onclick="toonTab('voortgang')">📈 Voortgang</button>
+    <button data-tab="records" onclick="toonTab('records')">🏅 Records</button>
   </nav>
 
   <script>
@@ -81,6 +93,34 @@
       punten.push({ datum: s.datum, e1rm, gewicht, isPR });
     }
     return punten;
+  }
+
+  // Beste records voor één oefening, of null als er geen data is.
+  // { beste1rm, beste1rmDatum, besteGewicht, besteGewichtDatum }
+  function recordsVoorOefening(sessies, exerciseId) {
+    let beste1rm = 0, beste1rmDatum = null, besteGewicht = 0, besteGewichtDatum = null;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o || o.sets.length === 0) continue;
+      const e = besteSet1RM(o.sets);
+      const g = Math.max(...o.sets.map(x => x.kg));
+      if (e > beste1rm) { beste1rm = e; beste1rmDatum = s.datum; }
+      if (g > besteGewicht) { besteGewicht = g; besteGewichtDatum = s.datum; }
+    }
+    if (beste1rmDatum === null) return null;
+    return { beste1rm, beste1rmDatum, besteGewicht, besteGewichtDatum };
+  }
+
+  // Is nieuweE1rm een nieuw persoonlijk record? Alleen true als er al eerdere
+  // sets bestaan én de nieuwe waarde strikt hoger is dan alle bestaande.
+  function isNieuwePR(sessies, exerciseId, nieuweE1rm) {
+    let besteBestaand = 0, aantal = 0;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o) continue;
+      for (const st of o.sets) { aantal++; const e = geschatte1RM(st.kg, st.reps); if (e > besteBestaand) besteBestaand = e; }
+    }
+    return aantal > 0 && nieuweE1rm > besteBestaand;
   }
 
   // Laatste set van deze oefening uit de meest recente sessie vóór huidigeDatum, of null.
@@ -183,6 +223,11 @@
     if (naam === 'vandaag') renderVandaag();
     if (naam === 'oefeningen') renderOefeningen();
     if (naam === 'voortgang') renderVoortgang();
+    if (naam === 'records') renderRecords();
+  }
+
+  function datumKort(iso) {
+    return new Date(iso + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
   }
 
   // tijdelijke stubs zodat de app laadt zonder fouten; worden in latere taken vervangen
@@ -249,6 +294,9 @@
     const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
     const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
     if (!(kg > 0) || !(reps > 0)) return;
+    // PR-check vóór het toevoegen (t.o.v. alle bestaande sets)
+    const nieuweE1rm = geschatte1RM(kg, reps);
+    const pr = isNieuwePR(laadSessies(), exerciseId, nieuweE1rm);
     zorgVoorSessieVandaag();
     const sessies = laadSessies();
     const s = sessies.find(x => x.datum === vandaagISO());
@@ -257,6 +305,8 @@
     o.sets.push({ kg, reps });
     bewaarSessies(sessies);
     renderVandaag();
+    if (pr) vierPR((laadOefeningen().find(x => x.id === exerciseId) || {}).naam || 'oefening', nieuweE1rm);
+    startRust(90);
   }
   function renderOefeningen() {
     const lijst = laadOefeningen();
@@ -304,26 +354,30 @@
     }
     renderOefeningen();
   }
-  function tekenGrafiek(punten) {
+  function tekenGrafiek(punten, doel) {
     const w = 300, h = 130, pad = 18;
     if (punten.length === 0) return '';
     // beide series delen dezelfde kg-as, zodat de lijnen door elkaar lopen
     const vals = punten.flatMap(p => [p.e1rm, p.gewicht]);
+    if (doel > 0) vals.push(doel);
     const min = Math.min(...vals), max = Math.max(...vals);
     const range = (max - min) || 1;
     const n = punten.length;
     const x = i => n === 1 ? w / 2 : pad + i * (w - 2 * pad) / (n - 1);
     const y = v => pad + (1 - (v - min) / range) * (h - 2 * pad);
+    const doelLijn = doel > 0 ? `<line x1="${pad}" y1="${y(doel)}" x2="${w - pad}" y2="${y(doel)}" stroke="#34d399" stroke-width="1.5" stroke-dasharray="2 3"/><text x="${w - pad}" y="${y(doel) - 4}" fill="#34d399" font-size="9" text-anchor="end">doel ${formatKg(doel)}</text>` : '';
     const lijnGewicht = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.gewicht)}`).join(' ')}" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" stroke-linejoin="round"/>`;
     const dotsGewicht = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.gewicht)}" r="2.5" fill="#38bdf8"/>`).join('');
     const lijn1rm = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.e1rm)}`).join(' ')}" fill="none" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
     const dots1rm = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="${p.isPR ? 5 : 3.5}" fill="${p.isPR ? '#fbbf24' : '#a78bfa'}"/>`).join('');
-    return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${lijnGewicht}${dotsGewicht}${lijn1rm}${dots1rm}</svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${doelLijn}${lijnGewicht}${dotsGewicht}${lijn1rm}${dots1rm}</svg>`;
   }
 
   function renderVoortgang() {
     const oef = laadOefeningen();
     if (geselecteerdeOefeningId === null && oef.length > 0) geselecteerdeOefeningId = oef[0].id;
+    const huidigeOef = oef.find(o => o.id === geselecteerdeOefeningId) || null;
+    const doel = huidigeOef && huidigeOef.doel1rm ? huidigeOef.doel1rm : 0;
     const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${escapeHtml(o.naam)}</option>`).join('');
     const punten = geselecteerdeOefeningId ? progressieVoorOefening(laadSessies(), geselecteerdeOefeningId) : [];
 
@@ -337,18 +391,21 @@
       const deltaTekst = delta > 0 ? `<span style="color:var(--groen)">▲ +${formatKg(delta)} kg</span>`
         : delta < 0 ? `<span style="color:#f87171">▼ ${formatKg(delta)} kg</span>`
         : '<span class="grijs">gelijk</span>';
+      const doelPct = doel > 0 ? `<div class="grijs" style="margin:2px 0 10px">🎯 doel: ${formatKg(laatste)} / ${formatKg(doel)} kg · ${Math.round(laatste / doel * 100)}%</div>` : '';
       inhoud = `
         <div style="margin-top:12px">
           <div class="rij" style="justify-content:flex-start;gap:10px;align-items:baseline">
             <span style="font-size:30px;font-weight:800">${formatKg(laatste)}<span class="grijs" style="font-size:15px"> kg</span></span>
             ${deltaTekst}
           </div>
-          <div class="grijs" style="margin-bottom:10px">geschatte kracht (1RM) · t.o.v. vorige sessie</div>
-          ${tekenGrafiek(punten)}
-          <div style="display:flex;gap:14px;margin-top:6px;font-size:11px">
+          <div class="grijs" style="margin-bottom:${doel > 0 ? '2px' : '10px'}">geschatte kracht (1RM) · t.o.v. vorige sessie</div>
+          ${doelPct}
+          ${tekenGrafiek(punten, doel)}
+          <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
             <span style="color:#a78bfa">▬ geschatte 1RM</span>
             <span style="color:#38bdf8">╌ werkelijk gewicht</span>
             <span style="color:#fbbf24">● PR</span>
+            ${doel > 0 ? '<span style="color:#34d399">╌ doel</span>' : ''}
           </div>
           <div class="rij" style="gap:8px;margin-top:14px">
             <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
@@ -357,11 +414,122 @@
         </div>`;
     }
 
+    const doelBlok = huidigeOef ? `
+      <div style="margin-top:16px">
+        <label class="veld">🎯 Doel (geschatte 1RM in kg)
+          <div class="rij" style="gap:8px">
+            <input id="doel-input" type="number" inputmode="decimal" step="0.5" value="${doel || ''}" placeholder="bijv. 110" style="flex:1">
+            <button class="mini" onclick="stelDoelIn('${geselecteerdeOefeningId}')">opslaan</button>
+          </div>
+        </label>
+      </div>` : '';
+
     document.getElementById('tab-voortgang').innerHTML = `
       <h1>Voortgang</h1>
       <select onchange="geselecteerdeOefeningId=this.value; renderVoortgang()" style="margin-top:10px">${opties}</select>
       ${inhoud}
+      ${doelBlok}
     `;
+  }
+
+  function stelDoelIn(id) {
+    const v = parseFloat(document.getElementById('doel-input').value);
+    const lijst = laadOefeningen();
+    const o = lijst.find(x => x.id === id);
+    if (!o) return;
+    if (v > 0) o.doel1rm = v; else delete o.doel1rm;
+    bewaarOefeningen(lijst);
+    renderVoortgang();
+  }
+
+  function renderRecords() {
+    const oef = laadOefeningen();
+    const sessies = laadSessies();
+    const kaarten = oef.map(o => {
+      const r = recordsVoorOefening(sessies, o.id);
+      if (!r) return '';
+      return `
+        <div class="kaart">
+          <div class="rij"><span><b>${escapeHtml(o.naam)}</b> <span class="badge">${escapeHtml(o.spiergroep || 'Overig')}</span></span></div>
+          <div class="rij grijs" style="margin-top:8px"><span>🏅 Beste 1RM</span><span style="color:var(--goud)">${formatKg(r.beste1rm)} kg · ${datumKort(r.beste1rmDatum)}</span></div>
+          <div class="rij grijs" style="margin-top:4px"><span>🏋️ Zwaarste gewicht</span><span style="color:var(--accent)">${formatKg(r.besteGewicht)} kg · ${datumKort(r.besteGewichtDatum)}</span></div>
+        </div>`;
+    }).filter(Boolean).join('');
+    document.getElementById('tab-records').innerHTML = `
+      <h1>Records</h1>
+      <p class="sub">Je persoonlijke toppers per oefening.</p>
+      <div style="margin-top:12px">${kaarten || '<p class="grijs">Nog geen records. Log eerst wat sessies bij "Vandaag".</p>'}</div>
+    `;
+  }
+
+  // ---- PR-viering ----
+  function vierPR(naam, e1rm) {
+    const el = document.getElementById('viering');
+    el.innerHTML = `<div class="viering-banner">🎉 Nieuw PR! ${escapeHtml(naam)} — ${formatKg(e1rm)} kg</div>` + confettiHtml();
+    el.classList.remove('verborgen');
+    if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+    setTimeout(() => el.classList.add('verborgen'), 3500);
+  }
+  function confettiHtml() {
+    const kleuren = ['#a78bfa','#38bdf8','#fbbf24','#34d399','#f87171'];
+    let out = '';
+    for (let i = 0; i < 28; i++) {
+      const left = Math.round(Math.random() * 100);
+      const kleur = kleuren[i % kleuren.length];
+      const delay = (Math.random() * 0.4).toFixed(2);
+      const dur = (1.2 + Math.random() * 0.8).toFixed(2);
+      out += `<span class="confetti" style="left:${left}vw;background:${kleur};animation-duration:${dur}s;animation-delay:${delay}s"></span>`;
+    }
+    return out;
+  }
+
+  // ---- Rustklok ----
+  let rustInterval = null, rustEind = 0;
+  function startRust(sec) {
+    if (rustInterval) clearInterval(rustInterval);
+    rustEind = Date.now() + sec * 1000;
+    const el = document.getElementById('rustklok');
+    el.innerHTML = `
+      <span class="tijd">--</span>
+      <button class="mini" onclick="verlengRust(30)">+30s</button>
+      <button class="mini" onclick="stopRust()">stop</button>
+      <span class="grijs" style="margin-left:auto">rust ⏱️</span>`;
+    el.classList.remove('verborgen');
+    rustInterval = setInterval(tikRust, 250);
+    tikRust();
+  }
+  function tikRust() {
+    const over = Math.max(0, Math.round((rustEind - Date.now()) / 1000));
+    const tijd = document.querySelector('#rustklok .tijd');
+    if (tijd) tijd.textContent = Math.floor(over / 60) + ':' + String(over % 60).padStart(2, '0');
+    if (over <= 0) klaarRust();
+  }
+  function klaarRust() {
+    if (rustInterval) { clearInterval(rustInterval); rustInterval = null; }
+    if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+    piep();
+    const tijd = document.querySelector('#rustklok .tijd');
+    if (tijd) tijd.textContent = 'klaar!';
+    setTimeout(stopRust, 1500);
+  }
+  function verlengRust(sec) {
+    rustEind = Math.max(rustEind, Date.now()) + sec * 1000;
+    if (!rustInterval) rustInterval = setInterval(tikRust, 250);
+    document.getElementById('rustklok').classList.remove('verborgen');
+    tikRust();
+  }
+  function stopRust() {
+    if (rustInterval) { clearInterval(rustInterval); rustInterval = null; }
+    document.getElementById('rustklok').classList.add('verborgen');
+  }
+  function piep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 880; g.gain.value = 0.08; o.start();
+      setTimeout(() => { o.stop(); ctx.close(); }, 200);
+    } catch (e) {}
   }
 
   zaaiStartlijst();

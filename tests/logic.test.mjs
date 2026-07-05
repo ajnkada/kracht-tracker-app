@@ -8,7 +8,7 @@ const match = html.match(/\/\/ ===== LOGIC START =====([\s\S]*?)\/\/ ===== LOGIC
 if (!match) throw new Error('LOGIC-blok niet gevonden in index.html');
 
 const sandbox = { module: { exports: {} } };
-const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg };';
+const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR };';
 // In latere taken zijn deze functies gedefinieerd; nu vangen we de ReferenceError op.
 let L = {};
 try {
@@ -96,6 +96,30 @@ test('vorigeSet: kijkt alleen naar sessies vóór de huidige datum', () => {
 test('vorigeSet: geen eerdere sessie geeft null', () => {
   const s = L.vorigeSet(sessiesVb, 'e1', '2026-07-01');
   assert.equal(s, null);
+});
+
+test('records: beste 1RM en zwaarste gewicht met datum', () => {
+  const r = L.recordsVoorOefening(sessiesVb, 'e1');
+  assert.ok(bijna(r.beste1rm, 42));       // 30x12 sessie 2026-07-03
+  assert.equal(r.beste1rmDatum, '2026-07-03');
+  assert.equal(r.besteGewicht, 30);
+  assert.equal(r.besteGewichtDatum, '2026-07-01');
+});
+
+test('records: onbekende oefening geeft null', () => {
+  assert.equal(L.recordsVoorOefening(sessiesVb, 'bestaat-niet'), null);
+});
+
+test('isNieuwePR: hoger dan alle bestaande sets is een PR', () => {
+  assert.equal(L.isNieuwePR(sessiesVb, 'e1', 43), true);
+});
+
+test('isNieuwePR: niet hoger dan bestaande is geen PR', () => {
+  assert.equal(L.isNieuwePR(sessiesVb, 'e1', 41), false);
+});
+
+test('isNieuwePR: eerste set ooit (geen eerdere) is geen PR', () => {
+  assert.equal(L.isNieuwePR(sessiesVb, 'nieuw-id', 50), false);
 });
 
 test('formatKg: hele getallen zonder decimaal', () => {
