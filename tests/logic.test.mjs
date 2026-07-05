@@ -41,3 +41,36 @@ test('besteSet1RM: kiest de set met de hoogste geschatte 1RM', () => {
 test('besteSet1RM: lege set-lijst geeft 0', () => {
   assert.equal(L.besteSet1RM([]), 0);
 });
+
+const sessiesVb = [
+  { id: 's1', datum: '2026-07-01', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 30, reps: 10 } ] } ] },
+  { id: 's2', datum: '2026-07-03', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 30, reps: 12 } ] } ] },
+  { id: 's3', datum: '2026-07-05', oefeningen: [ { exerciseId: 'e2', sets: [ { kg: 50, reps: 5 } ] } ] },
+];
+
+test('progressie: één punt per sessie met deze oefening, op datum gesorteerd', () => {
+  const punten = L.progressieVoorOefening(sessiesVb, 'e1');
+  assert.equal(punten.length, 2);
+  assert.equal(punten[0].datum, '2026-07-01');
+  assert.ok(bijna(punten[0].e1rm, 40));
+  assert.ok(bijna(punten[1].e1rm, 42));
+});
+
+test('progressie: eerste punt en elk nieuw record zijn een PR', () => {
+  const punten = L.progressieVoorOefening(sessiesVb, 'e1');
+  assert.equal(punten[0].isPR, true);
+  assert.equal(punten[1].isPR, true);
+});
+
+test('progressie: lager dan vorige max is geen PR', () => {
+  const s = [
+    { id: 'a', datum: '2026-07-01', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 30, reps: 12 } ] } ] },
+    { id: 'b', datum: '2026-07-02', oefeningen: [ { exerciseId: 'e1', sets: [ { kg: 30, reps: 8 } ] } ] },
+  ];
+  const punten = L.progressieVoorOefening(s, 'e1');
+  assert.equal(punten[1].isPR, false);
+});
+
+test('progressie: onbekende oefening geeft lege lijst', () => {
+  assert.deepEqual(L.progressieVoorOefening(sessiesVb, 'bestaat-niet'), []);
+});

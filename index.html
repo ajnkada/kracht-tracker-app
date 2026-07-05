@@ -55,6 +55,25 @@
     if (!sets || sets.length === 0) return 0;
     return Math.max(...sets.map(s => geschatte1RM(s.kg, s.reps)));
   }
+
+  // Grafiekpunten voor één oefening: [{ datum, e1rm, isPR }] op datum oplopend.
+  // isPR = geschatte 1RM is strikt hoger dan alle eerdere sessies.
+  function progressieVoorOefening(sessies, exerciseId) {
+    const relevant = sessies
+      .filter(s => s.oefeningen.some(o => o.exerciseId === exerciseId && o.sets.length > 0))
+      .slice()
+      .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0);
+    let max = -Infinity;
+    const punten = [];
+    for (const s of relevant) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      const e1rm = besteSet1RM(o.sets);
+      const isPR = e1rm > max;
+      if (isPR) max = e1rm;
+      punten.push({ datum: s.datum, e1rm, isPR });
+    }
+    return punten;
+  }
   // ===== LOGIC END =====
 
   function toonTab(naam) {
