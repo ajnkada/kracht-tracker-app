@@ -38,8 +38,10 @@
     .chip.aan { background:var(--paars); color:#1a1030; border-color:var(--paars); }
     #rustklok { position:fixed; left:0; right:0; bottom:47px; background:#0b1220; border-top:1px solid var(--line); padding:8px 12px; display:flex; align-items:center; gap:10px; z-index:40; max-width:480px; margin:0 auto; }
     #rustklok .tijd { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; min-width:64px; color:var(--accent); }
-    #viering { position:fixed; inset:0 0 auto 0; height:0; pointer-events:none; z-index:60; display:flex; justify-content:center; }
-    .viering-banner { margin-top:18px; background:var(--paars); color:#1a1030; font-weight:700; padding:10px 18px; border-radius:999px; box-shadow:0 6px 20px rgba(0,0,0,.45); animation:pop .3s ease; }
+    #viering { position:fixed; top:0; left:0; right:0; z-index:60; display:flex; justify-content:center; align-items:flex-start; pointer-events:none; }
+    .viering-banner { margin-top:18px; max-width:92%; background:var(--paars); color:#1a1030; font-weight:700; padding:10px 8px 10px 18px; border-radius:999px; box-shadow:0 6px 20px rgba(0,0,0,.45); animation:pop .3s ease; pointer-events:auto; display:flex; align-items:center; gap:8px; }
+    .sluit { background:transparent; border:none; color:inherit; font-size:20px; line-height:1; padding:0 6px; cursor:pointer; opacity:.85; }
+    .sluit:hover { opacity:1; }
     .confetti { position:fixed; top:-12px; width:8px; height:13px; border-radius:2px; opacity:.9; animation:vallen linear forwards; }
     @keyframes vallen { to { transform:translateY(100vh) rotate(540deg); opacity:0; } }
     @keyframes pop { from { transform:scale(.6); opacity:0 } to { transform:scale(1); opacity:1 } }
@@ -254,6 +256,9 @@
     { naam: 'Dead hang', spiergroepen: ['Onderarmen'], type: 'tijd' },
     { naam: 'Reverse curl', spiergroepen: ['Onderarmen','Bicep'] },
   ];
+  // Verhoog dit als de startlijst wijzigt; nieuwe oefeningen worden dan eenmalig
+  // bijgeplaatst bij bestaande gebruikers (zonder hun eigen lijst te wissen).
+  const STARTLIJST_VERSIE = 1;
 
   function nieuwId() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -293,6 +298,19 @@
       if (o.doel1rm !== undefined && o.doel === undefined) { o.doel = o.doel1rm; delete o.doel1rm; gewijzigd = true; }
     }
     if (gewijzigd) bewaarOefeningen(lijst);
+  }
+  // Voeg nieuwe startlijst-oefeningen (op naam) toe die de gebruiker nog niet heeft.
+  // Draait eenmalig per versie, zodat verwijderde oefeningen niet blijven terugkomen.
+  function vulStartlijstAan() {
+    const gezien = parseInt(localStorage.getItem('kt_startlijst_versie') || '0', 10);
+    if (gezien >= STARTLIJST_VERSIE) return;
+    const lijst = laadOefeningen();
+    const namen = new Set(lijst.map(o => o.naam));
+    for (const o of STARTLIJST) {
+      if (!namen.has(o.naam)) lijst.push({ id: nieuwId(), naam: o.naam, spiergroepen: o.spiergroepen.slice(), type: o.type || 'reps' });
+    }
+    bewaarOefeningen(lijst);
+    localStorage.setItem('kt_startlijst_versie', String(STARTLIJST_VERSIE));
   }
 
   // ---- Sessie-helpers ----
@@ -638,13 +656,21 @@
   }
 
   // ---- PR-viering ----
+  let vieringAutoHide = null;
   function vierPR(naam, waarde, isTijd) {
     const el = document.getElementById('viering');
     const tekst = isTijd ? formatTijd(waarde) : formatKg(waarde) + ' kg';
-    el.innerHTML = `<div class="viering-banner">🎉 Nieuw PR! ${escapeHtml(naam)} — ${tekst}</div>` + confettiHtml();
+    el.innerHTML = `<div class="viering-banner"><span>🎉 Nieuw PR! ${escapeHtml(naam)} — ${tekst}</span><button class="sluit" onclick="sluitViering()" aria-label="sluiten">×</button></div>` + confettiHtml();
     el.classList.remove('verborgen');
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
-    setTimeout(() => el.classList.add('verborgen'), 3500);
+    if (vieringAutoHide) clearTimeout(vieringAutoHide);
+    vieringAutoHide = setTimeout(sluitViering, 6000);
+  }
+  function sluitViering() {
+    if (vieringAutoHide) { clearTimeout(vieringAutoHide); vieringAutoHide = null; }
+    const el = document.getElementById('viering');
+    el.classList.add('verborgen');
+    el.innerHTML = '';
   }
   function confettiHtml() {
     const kleuren = ['#a78bfa','#38bdf8','#fbbf24','#34d399','#f87171'];
@@ -660,16 +686,17 @@
   }
 
   // ---- Rustklok ----
-  let rustInterval = null, rustEind = 0;
+  let rustInterval = null, rustEind = 0, rustAutoHide = null;
   function startRust(sec) {
     if (rustInterval) clearInterval(rustInterval);
+    if (rustAutoHide) { clearTimeout(rustAutoHide); rustAutoHide = null; }
     rustEind = Date.now() + sec * 1000;
     const el = document.getElementById('rustklok');
     el.innerHTML = `
       <span class="tijd">--</span>
       <button class="mini" onclick="verlengRust(30)">+30s</button>
-      <button class="mini" onclick="stopRust()">stop</button>
-      <span class="grijs" style="margin-left:auto">rust ⏱️</span>`;
+      <span class="grijs" style="margin-left:auto">rust ⏱️</span>
+      <button class="sluit" onclick="stopRust()" aria-label="sluiten">×</button>`;
     el.classList.remove('verborgen');
     rustInterval = setInterval(tikRust, 250);
     tikRust();
@@ -685,8 +712,10 @@
     if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
     piep();
     const tijd = document.querySelector('#rustklok .tijd');
-    if (tijd) tijd.textContent = 'klaar!';
-    setTimeout(stopRust, 1500);
+    if (tijd) { tijd.textContent = 'klaar! 💪'; tijd.style.color = 'var(--groen)'; }
+    // blijft staan tot je zelf op × klikt; ruime fallback zodat hij niet blijft hangen
+    if (rustAutoHide) clearTimeout(rustAutoHide);
+    rustAutoHide = setTimeout(stopRust, 15000);
   }
   function verlengRust(sec) {
     rustEind = Math.max(rustEind, Date.now()) + sec * 1000;
@@ -696,6 +725,7 @@
   }
   function stopRust() {
     if (rustInterval) { clearInterval(rustInterval); rustInterval = null; }
+    if (rustAutoHide) { clearTimeout(rustAutoHide); rustAutoHide = null; }
     document.getElementById('rustklok').classList.add('verborgen');
   }
   function piep() {
@@ -710,6 +740,7 @@
 
   zaaiStartlijst();
   migreerOefeningen();
+  vulStartlijstAan();
   renderVandaag();
   </script>
 </body>
