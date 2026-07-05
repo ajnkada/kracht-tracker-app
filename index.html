@@ -34,6 +34,8 @@
     nav button.actief { color: var(--accent); }
     .verborgen { display:none; }
     .badge { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--paars); font-size:11px; padding:1px 8px; border-radius:999px; vertical-align:middle; }
+    .chip { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--grijs); font-size:12px; padding:5px 11px; border-radius:999px; cursor:pointer; user-select:none; }
+    .chip.aan { background:var(--paars); color:#1a1030; border-color:var(--paars); }
     #rustklok { position:fixed; left:0; right:0; bottom:47px; background:#0b1220; border-top:1px solid var(--line); padding:8px 12px; display:flex; align-items:center; gap:10px; z-index:40; max-width:480px; margin:0 auto; }
     #rustklok .tijd { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; min-width:64px; color:var(--accent); }
     #viering { position:fixed; inset:0 0 auto 0; height:0; pointer-events:none; z-index:60; display:flex; justify-content:center; }
@@ -141,6 +143,58 @@
     if (s.endsWith('.0')) s = s.slice(0, -2);
     return s.replace('.', ',');
   }
+
+  // ---- Tijd-oefeningen (bijv. plank), gemeten in seconden ----
+  // Langste hold (seconden) van een oefening in één sessie.
+  function besteTijd(sets) {
+    if (!sets || sets.length === 0) return 0;
+    return Math.max(...sets.map(s => s.seconden || 0));
+  }
+  // Grafiekpunten voor een tijd-oefening: [{ datum, seconden, isPR }] op datum oplopend.
+  function progressieTijdVoorOefening(sessies, exerciseId) {
+    const relevant = sessies
+      .filter(s => s.oefeningen.some(o => o.exerciseId === exerciseId && o.sets.length > 0))
+      .slice()
+      .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0);
+    let max = -Infinity;
+    const punten = [];
+    for (const s of relevant) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      const seconden = besteTijd(o.sets);
+      const isPR = seconden > max;
+      if (isPR) max = seconden;
+      punten.push({ datum: s.datum, seconden, isPR });
+    }
+    return punten;
+  }
+  // Beste tijd-record voor een oefening, of null. { besteTijd, besteTijdDatum }
+  function recordsTijdVoorOefening(sessies, exerciseId) {
+    let beste = 0, besteDatum = null;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o || o.sets.length === 0) continue;
+      const t = besteTijd(o.sets);
+      if (t > beste) { beste = t; besteDatum = s.datum; }
+    }
+    if (besteDatum === null) return null;
+    return { besteTijd: beste, besteTijdDatum: besteDatum };
+  }
+  // Nieuw tijd-PR? Alleen als er al eerdere tijd-sets zijn én de nieuwe langer is.
+  function isNieuweTijdPR(sessies, exerciseId, nieuweSeconden) {
+    let besteBestaand = 0, aantal = 0;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o) continue;
+      for (const st of o.sets) { aantal++; const t = st.seconden || 0; if (t > besteBestaand) besteBestaand = t; }
+    }
+    return aantal > 0 && nieuweSeconden > besteBestaand;
+  }
+  // Seconden als "45s" (onder de minuut) of "1:30".
+  function formatTijd(sec) {
+    sec = Math.round(sec);
+    if (sec < 60) return sec + 's';
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }
   // ===== LOGIC END =====
   let geselecteerdeOefeningId = null;
 
@@ -148,18 +202,57 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   }
+  // Eén of meer spiergroep-badges naast elkaar.
+  function badgesHtml(groepen) {
+    return (groepen || []).map(g => `<span class="badge">${escapeHtml(g)}</span>`).join(' ');
+  }
+  function toggleChip(el) { el.classList.toggle('aan'); }
 
   // ---- Opslag (localStorage) ----
-  const SPIERGROEPEN = ['Bicep','Tricep','Borst','Rug','Schouders','Benen','Buik','Onderarmen'];
+  const SPIERGROEPEN = ['Bicep','Tricep','Borst','Rug','Schouders','Benen','Billen','Buik','Onderarmen'];
   const STARTLIJST = [
-    { naam: 'Bankdrukken', spiergroep: 'Borst' },
-    { naam: 'Squat', spiergroep: 'Benen' },
-    { naam: 'Deadlift', spiergroep: 'Rug' },
-    { naam: 'Schouderpers', spiergroep: 'Schouders' },
-    { naam: 'Lat pulldown', spiergroep: 'Rug' },
-    { naam: 'Barbell row', spiergroep: 'Rug' },
-    { naam: 'Biceps curl', spiergroep: 'Bicep' },
-    { naam: 'Triceps pushdown', spiergroep: 'Tricep' },
+    { naam: 'Bankdrukken', spiergroepen: ['Borst','Tricep'] },
+    { naam: 'Incline bankdrukken', spiergroepen: ['Borst','Schouders'] },
+    { naam: 'Dumbbell press', spiergroepen: ['Borst','Tricep'] },
+    { naam: 'Push-up', spiergroepen: ['Borst','Tricep','Buik'] },
+    { naam: 'Cable fly', spiergroepen: ['Borst'] },
+    { naam: 'Deadlift', spiergroepen: ['Rug','Benen','Billen'] },
+    { naam: 'Lat pulldown', spiergroepen: ['Rug','Bicep'] },
+    { naam: 'Barbell row', spiergroepen: ['Rug','Bicep'] },
+    { naam: 'Pull-up', spiergroepen: ['Rug','Bicep'] },
+    { naam: 'Seated row', spiergroepen: ['Rug','Bicep'] },
+    { naam: 'Squat', spiergroepen: ['Benen','Billen'] },
+    { naam: 'Leg press', spiergroepen: ['Benen','Billen'] },
+    { naam: 'Lunge', spiergroepen: ['Benen','Billen'] },
+    { naam: 'Leg extension', spiergroepen: ['Benen'] },
+    { naam: 'Leg curl', spiergroepen: ['Benen'] },
+    { naam: 'Hip thrust', spiergroepen: ['Billen','Benen'] },
+    { naam: 'Romanian deadlift', spiergroepen: ['Billen','Rug','Benen'] },
+    { naam: 'Bulgarian split squat', spiergroepen: ['Billen','Benen'] },
+    { naam: 'Glute bridge', spiergroepen: ['Billen'] },
+    { naam: 'Schouderpers', spiergroepen: ['Schouders','Tricep'] },
+    { naam: 'Lateral raise', spiergroepen: ['Schouders'] },
+    { naam: 'Front raise', spiergroepen: ['Schouders'] },
+    { naam: 'Reverse fly', spiergroepen: ['Schouders','Rug'] },
+    { naam: 'Arnold press', spiergroepen: ['Schouders','Tricep'] },
+    { naam: 'Biceps curl', spiergroepen: ['Bicep'] },
+    { naam: 'Hammer curl', spiergroepen: ['Bicep','Onderarmen'] },
+    { naam: 'Preacher curl', spiergroepen: ['Bicep'] },
+    { naam: 'Concentration curl', spiergroepen: ['Bicep'] },
+    { naam: 'Triceps pushdown', spiergroepen: ['Tricep'] },
+    { naam: 'Skull crusher', spiergroepen: ['Tricep'] },
+    { naam: 'Overhead extension', spiergroepen: ['Tricep'] },
+    { naam: 'Dips', spiergroepen: ['Tricep','Borst'] },
+    { naam: 'Plank', spiergroepen: ['Buik'], type: 'tijd' },
+    { naam: 'Side plank', spiergroepen: ['Buik'], type: 'tijd' },
+    { naam: 'Crunch', spiergroepen: ['Buik'] },
+    { naam: 'Leg raise', spiergroepen: ['Buik'] },
+    { naam: 'Mountain climber', spiergroepen: ['Buik'] },
+    { naam: 'Wrist curl', spiergroepen: ['Onderarmen'] },
+    { naam: 'Reverse wrist curl', spiergroepen: ['Onderarmen'] },
+    { naam: "Farmer's walk", spiergroepen: ['Onderarmen','Billen'], type: 'tijd' },
+    { naam: 'Dead hang', spiergroepen: ['Onderarmen'], type: 'tijd' },
+    { naam: 'Reverse curl', spiergroepen: ['Onderarmen','Bicep'] },
   ];
 
   function nieuwId() {
@@ -182,19 +275,22 @@
   }
   function zaaiStartlijst() {
     if (laadOefeningen().length === 0) {
-      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: o.naam, spiergroep: o.spiergroep })));
+      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: o.naam, spiergroepen: o.spiergroepen.slice(), type: o.type || 'reps' })));
     }
   }
-  // Vul een spiergroep aan voor oefeningen die van vóór deze functie stammen.
-  function migreerSpiergroepen() {
+  // Migreer oefeningen van oudere versies: enkelvoud spiergroep -> lijst,
+  // ontbrekende type -> 'reps', doel1rm -> doel.
+  function migreerOefeningen() {
     const lijst = laadOefeningen();
     let gewijzigd = false;
     for (const o of lijst) {
-      if (!o.spiergroep) {
-        const match = STARTLIJST.find(s => s.naam === o.naam);
-        o.spiergroep = match ? match.spiergroep : 'Overig';
+      if (!o.spiergroepen) {
+        if (o.spiergroep) { o.spiergroepen = [o.spiergroep]; delete o.spiergroep; }
+        else { const m = STARTLIJST.find(s => s.naam === o.naam); o.spiergroepen = m ? m.spiergroepen.slice() : ['Overig']; }
         gewijzigd = true;
       }
+      if (!o.type) { const m = STARTLIJST.find(s => s.naam === o.naam); o.type = (m && m.type) ? m.type : 'reps'; gewijzigd = true; }
+      if (o.doel1rm !== undefined && o.doel === undefined) { o.doel = o.doel1rm; delete o.doel1rm; gewijzigd = true; }
     }
     if (gewijzigd) bewaarOefeningen(lijst);
   }
@@ -234,26 +330,32 @@
   function renderVandaag() {
     const sessie = huidigeSessie();
     const alleOef = laadOefeningen();
-    const naamVan = id => (alleOef.find(o => o.id === id) || {}).naam || 'onbekend';
-    const groepVan = id => (alleOef.find(o => o.id === id) || {}).spiergroep || '';
+    const oefVan = id => alleOef.find(o => o.id === id) || {};
     const sessies = laadSessies();
 
     let kaarten = '';
     if (sessie && sessie.oefeningen.length > 0) {
       kaarten = sessie.oefeningen.map(o => {
+        const ex = oefVan(o.exerciseId);
+        const isTijd = ex.type === 'tijd';
         const vorige = vorigeSet(sessies, o.exerciseId, vandaagISO());
-        const vorigeTekst = vorige ? `vorige: ${formatKg(vorige.kg)} kg × ${vorige.reps}` : 'geen eerdere data';
+        const vorigeTekst = vorige
+          ? (isTijd ? `vorige: ${formatTijd(vorige.seconden)}` : `vorige: ${formatKg(vorige.kg)} kg × ${vorige.reps}`)
+          : 'geen eerdere data';
         const setRijen = o.sets.map((s, i) => `
           <div class="rij grijs" style="padding:3px 0">
-            <span>Set ${i + 1}</span><span>${formatKg(s.kg)} kg × ${s.reps}</span>
+            <span>Set ${i + 1}</span><span>${isTijd ? formatTijd(s.seconden) : `${formatKg(s.kg)} kg × ${s.reps}`}</span>
           </div>`).join('');
+        const invoer = isTijd
+          ? `<label class="veld" style="flex:1">seconden<input id="sec-${o.exerciseId}" type="number" inputmode="numeric"></label>`
+          : `<label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
+              <label class="veld" style="flex:1">reps<input id="reps-${o.exerciseId}" type="number" inputmode="numeric"></label>`;
         return `
           <div class="kaart">
-            <div class="rij"><span><b>🏋️ ${escapeHtml(naamVan(o.exerciseId))}</b>${groepVan(o.exerciseId) ? ` <span class="badge">${escapeHtml(groepVan(o.exerciseId))}</span>` : ''}</span><span class="grijs">${vorigeTekst}</span></div>
+            <div class="rij"><span><b>🏋️ ${escapeHtml(ex.naam || 'onbekend')}</b> ${badgesHtml(ex.spiergroepen)}</span><span class="grijs">${vorigeTekst}</span></div>
             ${setRijen}
             <div class="rij" style="margin-top:10px;gap:8px">
-              <label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
-              <label class="veld" style="flex:1">reps<input id="reps-${o.exerciseId}" type="number" inputmode="numeric"></label>
+              ${invoer}
               <button class="mini" style="align-self:flex-end" onclick="voegSetToe('${o.exerciseId}')">+ set</button>
             </div>
           </div>`;
@@ -291,31 +393,42 @@
   }
 
   function voegSetToe(exerciseId) {
-    const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
-    const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
-    if (!(kg > 0) || !(reps > 0)) return;
-    // PR-check vóór het toevoegen (t.o.v. alle bestaande sets)
-    const nieuweE1rm = geschatte1RM(kg, reps);
-    const pr = isNieuwePR(laadSessies(), exerciseId, nieuweE1rm);
+    const ex = laadOefeningen().find(o => o.id === exerciseId) || {};
+    const isTijd = ex.type === 'tijd';
+    let nieuweSet, prWaarde, pr;
+    if (isTijd) {
+      const sec = parseInt(document.getElementById('sec-' + exerciseId).value, 10);
+      if (!(sec > 0)) return;
+      nieuweSet = { seconden: sec };
+      prWaarde = sec;
+      pr = isNieuweTijdPR(laadSessies(), exerciseId, sec);
+    } else {
+      const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
+      const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
+      if (!(kg > 0) || !(reps > 0)) return;
+      nieuweSet = { kg, reps };
+      prWaarde = geschatte1RM(kg, reps);
+      pr = isNieuwePR(laadSessies(), exerciseId, prWaarde);
+    }
     zorgVoorSessieVandaag();
     const sessies = laadSessies();
     const s = sessies.find(x => x.datum === vandaagISO());
     let o = s.oefeningen.find(o => o.exerciseId === exerciseId);
     if (!o) { o = { exerciseId, sets: [] }; s.oefeningen.push(o); }
-    o.sets.push({ kg, reps });
+    o.sets.push(nieuweSet);
     bewaarSessies(sessies);
     renderVandaag();
-    if (pr) vierPR((laadOefeningen().find(x => x.id === exerciseId) || {}).naam || 'oefening', nieuweE1rm);
+    if (pr) vierPR(ex.naam || 'oefening', prWaarde, isTijd);
     startRust(90);
   }
   function renderOefeningen() {
     const lijst = laadOefeningen();
     const items = lijst.map(o => `
       <div class="kaart rij">
-        <span>💪 ${escapeHtml(o.naam)} <span class="badge">${escapeHtml(o.spiergroep || 'Overig')}</span></span>
+        <span>💪 ${escapeHtml(o.naam)} ${badgesHtml(o.spiergroepen)}${o.type === 'tijd' ? ' <span class="badge" style="color:var(--accent)">⏱️ tijd</span>' : ''}</span>
         <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
       </div>`).join('');
-    const groepOpties = SPIERGROEPEN.map(g => `<option value="${g}">${g}</option>`).join('');
+    const groepChips = SPIERGROEPEN.map(g => `<span class="chip" data-groep="${g}" onclick="toggleChip(this)">${g}</span>`).join(' ');
     document.getElementById('tab-oefeningen').innerHTML = `
       <h1>Oefeningen</h1>
       <p class="sub">Kies bij "Vandaag" uit deze lijst, of voeg hier je eigen oefening toe.</p>
@@ -323,22 +436,28 @@
         <label class="veld">Nieuwe oefening
           <input id="nieuwe-oefening" placeholder="bijv. Romanian deadlift">
         </label>
-        <label class="veld" style="margin-top:8px">Spiergroep
-          <select id="nieuwe-spiergroep">${groepOpties}</select>
+        <div style="font-size:11px;color:var(--grijs);margin:10px 0 6px">Spiergroep(en) — tik aan wat past</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${groepChips}</div>
+        <label class="veld" style="margin-top:10px">Meten in
+          <select id="nieuwe-type">
+            <option value="reps">herhalingen (kg × reps)</option>
+            <option value="tijd">seconden (bijv. plank)</option>
+          </select>
         </label>
-        <button style="margin-top:8px;width:100%" onclick="voegEigenOefeningToe()">+ Oefening toevoegen</button>
+        <button style="margin-top:10px;width:100%" onclick="voegEigenOefeningToe()">+ Oefening toevoegen</button>
       </div>
       ${items || '<p class="grijs">Nog geen oefeningen.</p>'}
     `;
   }
 
   function voegEigenOefeningToe() {
-    const input = document.getElementById('nieuwe-oefening');
-    const naam = input.value.trim();
+    const naam = document.getElementById('nieuwe-oefening').value.trim();
     if (!naam) return;
-    const spiergroep = document.getElementById('nieuwe-spiergroep').value;
+    const groepen = [...document.querySelectorAll('#tab-oefeningen .chip.aan')].map(el => el.dataset.groep);
+    if (groepen.length === 0) { alert('Kies minstens één spiergroep.'); return; }
+    const type = document.getElementById('nieuwe-type').value;
     const lijst = laadOefeningen();
-    lijst.push({ id: nieuwId(), naam, spiergroep });
+    lijst.push({ id: nieuwId(), naam, spiergroepen: groepen, type });
     bewaarOefeningen(lijst);
     renderOefeningen();
   }
@@ -373,17 +492,64 @@
     return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${doelLijn}${lijnGewicht}${dotsGewicht}${lijn1rm}${dots1rm}</svg>`;
   }
 
+  // Enkele lijn (langste hold in seconden) voor tijd-oefeningen.
+  function tekenGrafiekTijd(punten, doel) {
+    const w = 300, h = 130, pad = 18;
+    if (punten.length === 0) return '';
+    const vals = punten.map(p => p.seconden);
+    if (doel > 0) vals.push(doel);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = (max - min) || 1;
+    const n = punten.length;
+    const x = i => n === 1 ? w / 2 : pad + i * (w - 2 * pad) / (n - 1);
+    const y = v => pad + (1 - (v - min) / range) * (h - 2 * pad);
+    const doelLijn = doel > 0 ? `<line x1="${pad}" y1="${y(doel)}" x2="${w - pad}" y2="${y(doel)}" stroke="#34d399" stroke-width="1.5" stroke-dasharray="2 3"/><text x="${w - pad}" y="${y(doel) - 4}" fill="#34d399" font-size="9" text-anchor="end">doel ${formatTijd(doel)}</text>` : '';
+    const lijn = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.seconden)}`).join(' ')}" fill="none" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const dots = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.seconden)}" r="${p.isPR ? 5 : 3.5}" fill="${p.isPR ? '#fbbf24' : '#a78bfa'}"/>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${doelLijn}${lijn}${dots}</svg>`;
+  }
+
   function renderVoortgang() {
     const oef = laadOefeningen();
     if (geselecteerdeOefeningId === null && oef.length > 0) geselecteerdeOefeningId = oef[0].id;
     const huidigeOef = oef.find(o => o.id === geselecteerdeOefeningId) || null;
-    const doel = huidigeOef && huidigeOef.doel1rm ? huidigeOef.doel1rm : 0;
+    const isTijd = !!huidigeOef && huidigeOef.type === 'tijd';
+    const doel = huidigeOef && huidigeOef.doel ? huidigeOef.doel : 0;
     const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${escapeHtml(o.naam)}</option>`).join('');
-    const punten = geselecteerdeOefeningId ? progressieVoorOefening(laadSessies(), geselecteerdeOefeningId) : [];
+    const punten = !geselecteerdeOefeningId ? []
+      : (isTijd ? progressieTijdVoorOefening(laadSessies(), geselecteerdeOefeningId)
+                : progressieVoorOefening(laadSessies(), geselecteerdeOefeningId));
 
     let inhoud;
     if (punten.length === 0) {
       inhoud = '<p class="grijs" style="margin-top:16px">Nog geen data voor deze oefening. Log eerst een set bij "Vandaag".</p>';
+    } else if (isTijd) {
+      const laatste = punten[punten.length - 1].seconden;
+      const delta = punten.length >= 2 ? laatste - punten[punten.length - 2].seconden : 0;
+      const prs = punten.filter(p => p.isPR).length;
+      const deltaTekst = delta > 0 ? `<span style="color:var(--groen)">▲ +${delta}s</span>`
+        : delta < 0 ? `<span style="color:#f87171">▼ ${delta}s</span>`
+        : '<span class="grijs">gelijk</span>';
+      const doelPct = doel > 0 ? `<div class="grijs" style="margin:2px 0 10px">🎯 doel: ${formatTijd(laatste)} / ${formatTijd(doel)} · ${Math.round(laatste / doel * 100)}%</div>` : '';
+      inhoud = `
+        <div style="margin-top:12px">
+          <div class="rij" style="justify-content:flex-start;gap:10px;align-items:baseline">
+            <span style="font-size:30px;font-weight:800">${formatTijd(laatste)}</span>
+            ${deltaTekst}
+          </div>
+          <div class="grijs" style="margin-bottom:${doel > 0 ? '2px' : '10px'}">langste hold · t.o.v. vorige sessie</div>
+          ${doelPct}
+          ${tekenGrafiekTijd(punten, doel)}
+          <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
+            <span style="color:#a78bfa">▬ langste hold</span>
+            <span style="color:#fbbf24">● PR</span>
+            ${doel > 0 ? '<span style="color:#34d399">╌ doel</span>' : ''}
+          </div>
+          <div class="rij" style="gap:8px;margin-top:14px">
+            <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
+            <div class="stat"><b>${prs}</b><br><span>PR's 🏅</span></div>
+          </div>
+        </div>`;
     } else {
       const laatste = punten[punten.length - 1].e1rm;
       const delta = punten.length >= 2 ? laatste - punten[punten.length - 2].e1rm : 0;
@@ -416,9 +582,9 @@
 
     const doelBlok = huidigeOef ? `
       <div style="margin-top:16px">
-        <label class="veld">🎯 Doel (geschatte 1RM in kg)
+        <label class="veld">🎯 Doel (${isTijd ? 'in seconden' : 'geschatte 1RM in kg'})
           <div class="rij" style="gap:8px">
-            <input id="doel-input" type="number" inputmode="decimal" step="0.5" value="${doel || ''}" placeholder="bijv. 110" style="flex:1">
+            <input id="doel-input" type="number" inputmode="${isTijd ? 'numeric' : 'decimal'}" step="${isTijd ? '1' : '0.5'}" value="${doel || ''}" placeholder="${isTijd ? 'bijv. 90' : 'bijv. 110'}" style="flex:1">
             <button class="mini" onclick="stelDoelIn('${geselecteerdeOefeningId}')">opslaan</button>
           </div>
         </label>
@@ -437,7 +603,7 @@
     const lijst = laadOefeningen();
     const o = lijst.find(x => x.id === id);
     if (!o) return;
-    if (v > 0) o.doel1rm = v; else delete o.doel1rm;
+    if (v > 0) o.doel = v; else delete o.doel;
     bewaarOefeningen(lijst);
     renderVoortgang();
   }
@@ -446,11 +612,20 @@
     const oef = laadOefeningen();
     const sessies = laadSessies();
     const kaarten = oef.map(o => {
+      if (o.type === 'tijd') {
+        const r = recordsTijdVoorOefening(sessies, o.id);
+        if (!r) return '';
+        return `
+          <div class="kaart">
+            <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span></div>
+            <div class="rij grijs" style="margin-top:8px"><span>🏅 Beste tijd</span><span style="color:var(--goud)">${formatTijd(r.besteTijd)} · ${datumKort(r.besteTijdDatum)}</span></div>
+          </div>`;
+      }
       const r = recordsVoorOefening(sessies, o.id);
       if (!r) return '';
       return `
         <div class="kaart">
-          <div class="rij"><span><b>${escapeHtml(o.naam)}</b> <span class="badge">${escapeHtml(o.spiergroep || 'Overig')}</span></span></div>
+          <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span></div>
           <div class="rij grijs" style="margin-top:8px"><span>🏅 Beste 1RM</span><span style="color:var(--goud)">${formatKg(r.beste1rm)} kg · ${datumKort(r.beste1rmDatum)}</span></div>
           <div class="rij grijs" style="margin-top:4px"><span>🏋️ Zwaarste gewicht</span><span style="color:var(--accent)">${formatKg(r.besteGewicht)} kg · ${datumKort(r.besteGewichtDatum)}</span></div>
         </div>`;
@@ -463,9 +638,10 @@
   }
 
   // ---- PR-viering ----
-  function vierPR(naam, e1rm) {
+  function vierPR(naam, waarde, isTijd) {
     const el = document.getElementById('viering');
-    el.innerHTML = `<div class="viering-banner">🎉 Nieuw PR! ${escapeHtml(naam)} — ${formatKg(e1rm)} kg</div>` + confettiHtml();
+    const tekst = isTijd ? formatTijd(waarde) : formatKg(waarde) + ' kg';
+    el.innerHTML = `<div class="viering-banner">🎉 Nieuw PR! ${escapeHtml(naam)} — ${tekst}</div>` + confettiHtml();
     el.classList.remove('verborgen');
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     setTimeout(() => el.classList.add('verborgen'), 3500);
@@ -533,7 +709,7 @@
   }
 
   zaaiStartlijst();
-  migreerSpiergroepen();
+  migreerOefeningen();
   renderVandaag();
   </script>
 </body>

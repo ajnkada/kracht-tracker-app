@@ -8,7 +8,7 @@ const match = html.match(/\/\/ ===== LOGIC START =====([\s\S]*?)\/\/ ===== LOGIC
 if (!match) throw new Error('LOGIC-blok niet gevonden in index.html');
 
 const sandbox = { module: { exports: {} } };
-const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR };';
+const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR, besteTijd, progressieTijdVoorOefening, recordsTijdVoorOefening, isNieuweTijdPR, formatTijd };';
 // In latere taken zijn deze functies gedefinieerd; nu vangen we de ReferenceError op.
 let L = {};
 try {
@@ -120,6 +120,58 @@ test('isNieuwePR: niet hoger dan bestaande is geen PR', () => {
 
 test('isNieuwePR: eerste set ooit (geen eerdere) is geen PR', () => {
   assert.equal(L.isNieuwePR(sessiesVb, 'nieuw-id', 50), false);
+});
+
+const tijdSessies = [
+  { id: 't1', datum: '2026-07-01', oefeningen: [ { exerciseId: 'p1', sets: [ { seconden: 30 }, { seconden: 40 } ] } ] },
+  { id: 't2', datum: '2026-07-03', oefeningen: [ { exerciseId: 'p1', sets: [ { seconden: 50 } ] } ] },
+];
+
+test('besteTijd: langste hold van de sessie', () => {
+  assert.equal(L.besteTijd([ { seconden: 30 }, { seconden: 45 } ]), 45);
+});
+
+test('besteTijd: lege set-lijst geeft 0', () => {
+  assert.equal(L.besteTijd([]), 0);
+});
+
+test('progressieTijd: punten met seconden, op datum, met PR', () => {
+  const p = L.progressieTijdVoorOefening(tijdSessies, 'p1');
+  assert.equal(p.length, 2);
+  assert.equal(p[0].seconden, 40);
+  assert.equal(p[1].seconden, 50);
+  assert.equal(p[0].isPR, true);
+  assert.equal(p[1].isPR, true);
+});
+
+test('recordsTijd: beste tijd met datum', () => {
+  const r = L.recordsTijdVoorOefening(tijdSessies, 'p1');
+  assert.equal(r.besteTijd, 50);
+  assert.equal(r.besteTijdDatum, '2026-07-03');
+});
+
+test('recordsTijd: onbekende oefening geeft null', () => {
+  assert.equal(L.recordsTijdVoorOefening(tijdSessies, 'x'), null);
+});
+
+test('isNieuweTijdPR: langer dan bestaand is een PR', () => {
+  assert.equal(L.isNieuweTijdPR(tijdSessies, 'p1', 60), true);
+});
+
+test('isNieuweTijdPR: niet langer is geen PR', () => {
+  assert.equal(L.isNieuweTijdPR(tijdSessies, 'p1', 45), false);
+});
+
+test('isNieuweTijdPR: eerste tijd-set ooit is geen PR', () => {
+  assert.equal(L.isNieuweTijdPR(tijdSessies, 'nieuw', 99), false);
+});
+
+test('formatTijd: onder de minuut in seconden', () => {
+  assert.equal(L.formatTijd(45), '45s');
+});
+
+test('formatTijd: vanaf een minuut als m:ss', () => {
+  assert.equal(L.formatTijd(90), '1:30');
 });
 
 test('formatKg: hele getallen zonder decimaal', () => {
