@@ -123,5 +123,17 @@ Na goedkeuring en bouw toegevoegd op verzoek:
 5. **Rustklok.** Start automatisch (90 s) na elke gelogde set, met +30 s / stop,
    trillen en een korte piep op 0. Eigen vast DOM-element zodat re-renders het
    niet resetten.
-6. **Targets (doel).** Per oefening een doel-`doel1rm` (geschatte 1RM). Getoond als
-   groene streeplijn in de grafiek plus een %-vordering; instelbaar op de Voortgang-tab.
+6. **Targets (doel).** Per oefening een doel (veld `doel`). Getoond als groene
+   streeplijn in de grafiek plus een %-vordering; instelbaar op de Voortgang-tab.
+   Voor reps-oefeningen in kg (1RM), voor tijd-oefeningen in seconden.
+7. **Meerdere spiergroepen + Billen.** Spiergroep is nu een lijst (`spiergroepen`);
+   Billen toegevoegd. In het toevoeg-scherm kies je groepen met aanklikbare chips;
+   meerdere badges worden getoond. Deadlift = Rug + Benen + Billen.
+8. **Tijd-oefeningen.** Oefeningen hebben een `type` ('reps' of 'tijd'). Tijd-
+   oefeningen (bijv. plank) loggen seconden i.p.v. kg×reps; de Voortgang toont de
+   langste hold, Records de beste tijd, en PR/doel werken in seconden. Pure helpers
+   `besteTijd`, `progressieTijdVoorOefening`, `recordsTijdVoorOefening`,
+   `isNieuweTijdPR`, `formatTijd`.
+9. **Grotere startlijst.** ~42 oefeningen met minstens ~6 per spiergroep, inclusief
+   de tijd-oefeningen Plank, Side plank, Farmer's walk en Dead hang.
+   `migreerOefeningen` migreert oude data (enkelvoud → lijst, type, doel1rm → doel).
