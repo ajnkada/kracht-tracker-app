@@ -115,3 +115,13 @@ Na goedkeuring en bouw toegevoegd op verzoek:
    ook `gewicht` (het zwaarste kg van die sessie). De Voortgang-grafiek tekent die
    als tweede lijn (blauw, gestippeld) op dezelfde kg-as als de 1RM-lijn, met legenda.
    De gouden PR-stippen blijven op de 1RM-lijn.
+3. **Records-tabblad.** Vierde tab (🏅 Records) met per oefening het beste 1RM en
+   het zwaarste gewicht, elk met datum (pure helper `recordsVoorOefening`).
+4. **PR-viering.** Bij het loggen van een set die een nieuw 1RM-record zet
+   (pure helper `isNieuwePR`) verschijnt een banner + confetti + trilsignaal.
+   Vuurt niet op de allereerste set of op een niet-record set.
+5. **Rustklok.** Start automatisch (90 s) na elke gelogde set, met +30 s / stop,
+   trillen en een korte piep op 0. Eigen vast DOM-element zodat re-renders het
+   niet resetten.
+6. **Targets (doel).** Per oefening een doel-`doel1rm` (geschatte 1RM). Getoond als
+   groene streeplijn in de grafiek plus een %-vordering; instelbaar op de Voortgang-tab.
