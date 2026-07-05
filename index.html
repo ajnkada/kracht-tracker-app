@@ -94,6 +94,7 @@
     return s.replace('.', ',');
   }
   // ===== LOGIC END =====
+  let geselecteerdeOefeningId = null;
 
   // ---- Opslag (localStorage) ----
   const STARTLIJST = ['Bankdrukken','Squat','Deadlift','Schouderpers','Lat pulldown','Barbell row','Biceps curl','Triceps pushdown'];
@@ -252,7 +253,57 @@
     bewaarOefeningen(laadOefeningen().filter(o => o.id !== id));
     renderOefeningen();
   }
-  function renderVoortgang() { document.getElementById('tab-voortgang').innerHTML = '<h1>Voortgang</h1><p class="sub">nog te bouwen</p>'; }
+  function tekenGrafiek(punten) {
+    const w = 300, h = 130, pad = 18;
+    if (punten.length === 0) return '';
+    const vals = punten.map(p => p.e1rm);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = (max - min) || 1;
+    const n = punten.length;
+    const x = i => n === 1 ? w / 2 : pad + i * (w - 2 * pad) / (n - 1);
+    const y = v => pad + (1 - (v - min) / range) * (h - 2 * pad);
+    const lijn = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.e1rm)}`).join(' ')}" fill="none" stroke="#a78bfa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const dots = punten.map((p,i) => `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="${p.isPR ? 5 : 3.5}" fill="${p.isPR ? '#fbbf24' : '#a78bfa'}"/>`).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" xmlns="http://www.w3.org/2000/svg">${lijn}${dots}</svg>`;
+  }
+
+  function renderVoortgang() {
+    const oef = laadOefeningen();
+    if (geselecteerdeOefeningId === null && oef.length > 0) geselecteerdeOefeningId = oef[0].id;
+    const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${o.naam}</option>`).join('');
+    const punten = geselecteerdeOefeningId ? progressieVoorOefening(laadSessies(), geselecteerdeOefeningId) : [];
+
+    let inhoud;
+    if (punten.length === 0) {
+      inhoud = '<p class="grijs" style="margin-top:16px">Nog geen data voor deze oefening. Log eerst een set bij "Vandaag".</p>';
+    } else {
+      const laatste = punten[punten.length - 1].e1rm;
+      const delta = punten.length >= 2 ? laatste - punten[punten.length - 2].e1rm : 0;
+      const prs = punten.filter(p => p.isPR).length;
+      const deltaTekst = delta > 0 ? `<span style="color:var(--groen)">▲ +${formatKg(delta)} kg</span>`
+        : delta < 0 ? `<span style="color:#f87171">▼ ${formatKg(delta)} kg</span>`
+        : '<span class="grijs">gelijk</span>';
+      inhoud = `
+        <div style="margin-top:12px">
+          <div class="rij" style="justify-content:flex-start;gap:10px;align-items:baseline">
+            <span style="font-size:30px;font-weight:800">${formatKg(laatste)}<span class="grijs" style="font-size:15px"> kg</span></span>
+            ${deltaTekst}
+          </div>
+          <div class="grijs" style="margin-bottom:10px">geschatte kracht (1RM) · t.o.v. vorige sessie</div>
+          ${tekenGrafiek(punten)}
+          <div class="rij" style="gap:8px;margin-top:14px">
+            <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
+            <div class="stat"><b>${prs}</b><br><span>PR's 🏅</span></div>
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('tab-voortgang').innerHTML = `
+      <h1>Voortgang</h1>
+      <select onchange="geselecteerdeOefeningId=this.value; renderVoortgang()" style="margin-top:10px">${opties}</select>
+      ${inhoud}
+    `;
+  }
 
   zaaiStartlijst();
   renderVandaag();
