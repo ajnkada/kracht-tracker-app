@@ -85,6 +85,14 @@
     const o = eerder[0].oefeningen.find(o => o.exerciseId === exerciseId);
     return o.sets[o.sets.length - 1];
   }
+
+  // Rond af op 1 decimaal, strip ",0" en gebruik Nederlandse komma.
+  function formatKg(x) {
+    const r = Math.round(x * 10) / 10;
+    let s = r.toFixed(1);
+    if (s.endsWith('.0')) s = s.slice(0, -2);
+    return s.replace('.', ',');
+  }
   // ===== LOGIC END =====
 
   function toonTab(naam) {

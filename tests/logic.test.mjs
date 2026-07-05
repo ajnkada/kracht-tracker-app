@@ -89,3 +89,16 @@ test('vorigeSet: geen eerdere sessie geeft null', () => {
   const s = L.vorigeSet(sessiesVb, 'e1', '2026-07-01');
   assert.equal(s, null);
 });
+
+test('formatKg: hele getallen zonder decimaal', () => {
+  assert.equal(L.formatKg(42), '42');
+  assert.equal(L.formatKg(40), '40');
+});
+
+test('formatKg: één decimaal met Nederlandse komma', () => {
+  assert.equal(L.formatKg(40.8333), '40,8');
+});
+
+test('formatKg: rondt floating-point ruis weg', () => {
+  assert.equal(L.formatKg(39.99999999), '40');
+});
