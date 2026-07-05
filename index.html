@@ -101,6 +101,11 @@
   // ===== LOGIC END =====
   let geselecteerdeOefeningId = null;
 
+  // Escape tekst die via innerHTML wordt ingevoegd (bijv. oefeningnamen met " of <)
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  }
+
   // ---- Opslag (localStorage) ----
   const STARTLIJST = ['Bankdrukken','Squat','Deadlift','Schouderpers','Lat pulldown','Barbell row','Biceps curl','Triceps pushdown'];
 
@@ -172,7 +177,7 @@
           </div>`).join('');
         return `
           <div class="kaart">
-            <div class="rij"><b>🏋️ ${naamVan(o.exerciseId)}</b><span class="grijs">${vorigeTekst}</span></div>
+            <div class="rij"><b>🏋️ ${escapeHtml(naamVan(o.exerciseId))}</b><span class="grijs">${vorigeTekst}</span></div>
             ${setRijen}
             <div class="rij" style="margin-top:10px;gap:8px">
               <label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
@@ -185,7 +190,7 @@
 
     const alGekozen = sessie ? sessie.oefeningen.map(o => o.exerciseId) : [];
     const opties = alleOef.filter(o => !alGekozen.includes(o.id))
-      .map(o => `<option value="${o.id}">${o.naam}</option>`).join('');
+      .map(o => `<option value="${o.id}">${escapeHtml(o.naam)}</option>`).join('');
     const picker = opties ? `
       <div class="rij" style="gap:8px;margin-top:8px">
         <select id="oefening-keuze" style="flex:1">${opties}</select>
@@ -217,9 +222,11 @@
     const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
     const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
     if (!(kg > 0) || !(reps > 0)) return;
+    zorgVoorSessieVandaag();
     const sessies = laadSessies();
     const s = sessies.find(x => x.datum === vandaagISO());
-    const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+    let o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+    if (!o) { o = { exerciseId, sets: [] }; s.oefeningen.push(o); }
     o.sets.push({ kg, reps });
     bewaarSessies(sessies);
     renderVandaag();
@@ -228,7 +235,7 @@
     const lijst = laadOefeningen();
     const items = lijst.map(o => `
       <div class="kaart rij">
-        <span>💪 ${o.naam}</span>
+        <span>💪 ${escapeHtml(o.naam)}</span>
         <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
       </div>`).join('');
     document.getElementById('tab-oefeningen').innerHTML = `
@@ -256,6 +263,13 @@
 
   function verwijderOefening(id) {
     bewaarOefeningen(laadOefeningen().filter(o => o.id !== id));
+    // haal de oefening ook uit de sessie van vandaag, anders blijft er een "onbekend"-kaart staan
+    const sessies = laadSessies();
+    const vandaag = sessies.find(s => s.datum === vandaagISO());
+    if (vandaag) {
+      vandaag.oefeningen = vandaag.oefeningen.filter(o => o.exerciseId !== id);
+      bewaarSessies(sessies);
+    }
     renderOefeningen();
   }
   function tekenGrafiek(punten) {
@@ -275,7 +289,7 @@
   function renderVoortgang() {
     const oef = laadOefeningen();
     if (geselecteerdeOefeningId === null && oef.length > 0) geselecteerdeOefeningId = oef[0].id;
-    const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${o.naam}</option>`).join('');
+    const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${escapeHtml(o.naam)}</option>`).join('');
     const punten = geselecteerdeOefeningId ? progressieVoorOefening(laadSessies(), geselecteerdeOefeningId) : [];
 
     let inhoud;
