@@ -8,7 +8,7 @@ const match = html.match(/\/\/ ===== LOGIC START =====([\s\S]*?)\/\/ ===== LOGIC
 if (!match) throw new Error('LOGIC-blok niet gevonden in index.html');
 
 const sandbox = { module: { exports: {} } };
-const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR, besteTijd, progressieTijdVoorOefening, recordsTijdVoorOefening, isNieuweTijdPR, formatTijd };';
+const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR, isNieuwGewichtPR, besteTijd, progressieTijdVoorOefening, recordsTijdVoorOefening, isNieuweTijdPR, formatTijd };';
 // In latere taken zijn deze functies gedefinieerd; nu vangen we de ReferenceError op.
 let L = {};
 try {
@@ -120,6 +120,18 @@ test('isNieuwePR: niet hoger dan bestaande is geen PR', () => {
 
 test('isNieuwePR: eerste set ooit (geen eerdere) is geen PR', () => {
   assert.equal(L.isNieuwePR(sessiesVb, 'nieuw-id', 50), false);
+});
+
+test('isNieuwGewichtPR: zwaarder dan bestaand is een PR', () => {
+  assert.equal(L.isNieuwGewichtPR(sessiesVb, 'e1', 35), true);
+});
+
+test('isNieuwGewichtPR: niet zwaarder is geen PR', () => {
+  assert.equal(L.isNieuwGewichtPR(sessiesVb, 'e1', 30), false);
+});
+
+test('isNieuwGewichtPR: eerste gewicht-set ooit is geen PR', () => {
+  assert.equal(L.isNieuwGewichtPR(sessiesVb, 'nieuw-id', 100), false);
 });
 
 const tijdSessies = [

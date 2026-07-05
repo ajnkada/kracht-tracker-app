@@ -36,6 +36,9 @@
     .badge { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--paars); font-size:11px; padding:1px 8px; border-radius:999px; vertical-align:middle; }
     .chip { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--grijs); font-size:12px; padding:5px 11px; border-radius:999px; cursor:pointer; user-select:none; }
     .chip.aan { background:var(--paars); color:#1a1030; border-color:var(--paars); }
+    .progtabel { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+    .progtabel th { text-align:left; color:var(--grijs); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; padding:4px 6px; border-bottom:1px solid var(--line); }
+    .progtabel td { padding:6px; border-bottom:1px solid #1e293b; }
     #rustklok { position:fixed; left:0; right:0; bottom:47px; background:#0b1220; border-top:1px solid var(--line); padding:8px 12px; display:flex; align-items:center; gap:10px; z-index:40; max-width:480px; margin:0 auto; }
     #rustklok .tijd { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; min-width:64px; color:var(--accent); }
     #viering { position:fixed; top:0; left:0; right:0; z-index:60; display:flex; justify-content:center; align-items:flex-start; pointer-events:none; }
@@ -125,6 +128,18 @@
       for (const st of o.sets) { aantal++; const e = geschatte1RM(st.kg, st.reps); if (e > besteBestaand) besteBestaand = e; }
     }
     return aantal > 0 && nieuweE1rm > besteBestaand;
+  }
+
+  // Nieuw gewicht-PR? Alleen als er al eerdere kg-sets zijn én het nieuwe gewicht
+  // strikt zwaarder is dan alle bestaande.
+  function isNieuwGewichtPR(sessies, exerciseId, nieuwGewicht) {
+    let beste = 0, aantal = 0;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o) continue;
+      for (const st of o.sets) { if (st.kg !== undefined) { aantal++; if (st.kg > beste) beste = st.kg; } }
+    }
+    return aantal > 0 && nieuwGewicht > beste;
   }
 
   // Laatste set van deze oefening uit de meest recente sessie vóór huidigeDatum, of null.
@@ -435,20 +450,22 @@
   function voegSetToe(exerciseId) {
     const ex = laadOefeningen().find(o => o.id === exerciseId) || {};
     const isTijd = ex.type === 'tijd';
-    let nieuweSet, prWaarde, pr;
+    const sessiesNu = laadSessies();
+    let nieuweSet, pr = false, prTekst = '';
     if (isTijd) {
       const sec = parseInt(document.getElementById('sec-' + exerciseId).value, 10);
       if (!(sec > 0)) return;
       nieuweSet = { seconden: sec };
-      prWaarde = sec;
-      pr = isNieuweTijdPR(laadSessies(), exerciseId, sec);
+      if (isNieuweTijdPR(sessiesNu, exerciseId, sec)) { pr = true; prTekst = formatTijd(sec); }
     } else {
       const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
       const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
       if (!(kg > 0) || !(reps > 0)) return;
       nieuweSet = { kg, reps };
-      prWaarde = geschatte1RM(kg, reps);
-      pr = isNieuwePR(laadSessies(), exerciseId, prWaarde);
+      const delen = [];
+      if (isNieuwePR(sessiesNu, exerciseId, geschatte1RM(kg, reps))) delen.push(`1RM ${formatKg(geschatte1RM(kg, reps))} kg`);
+      if (isNieuwGewichtPR(sessiesNu, exerciseId, kg)) delen.push(`zwaarste ${formatKg(kg)} kg`);
+      if (delen.length) { pr = true; prTekst = delen.join(' · '); }
     }
     zorgVoorSessieOpDatum(geselecteerdeDatum);
     const sessies = laadSessies();
@@ -458,7 +475,7 @@
     o.sets.push(nieuweSet);
     bewaarSessies(sessies);
     renderVandaag();
-    if (pr) vierPR(ex.naam || 'oefening', prWaarde, isTijd);
+    if (pr) vierPR(ex.naam || 'oefening', prTekst);
     if (geselecteerdeDatum === vandaagISO()) startRust(90); // rust alleen bij loggen van vandaag
   }
   function renderOefeningen() {
@@ -589,6 +606,10 @@
             <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
             <div class="stat"><b>${prs}</b><br><span>PR's 🏅</span></div>
           </div>
+          <table class="progtabel">
+            <thead><tr><th>tijd</th><th>datum</th></tr></thead>
+            <tbody>${punten.slice().reverse().map(p => `<tr><td>${formatTijd(p.seconden)}${p.isPR ? ' 🏅' : ''}</td><td class="grijs">${datumKort(p.datum)}</td></tr>`).join('')}</tbody>
+          </table>
         </div>`;
     } else {
       const laatste = punten[punten.length - 1].e1rm;
@@ -617,6 +638,10 @@
             <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
             <div class="stat"><b>${prs}</b><br><span>PR's 🏅</span></div>
           </div>
+          <table class="progtabel">
+            <thead><tr><th>kg</th><th>1RM</th><th>datum</th></tr></thead>
+            <tbody>${punten.slice().reverse().map(p => `<tr><td>${formatKg(p.gewicht)}</td><td>${formatKg(p.e1rm)}${p.isPR ? ' 🏅' : ''}</td><td class="grijs">${datumKort(p.datum)}</td></tr>`).join('')}</tbody>
+          </table>
         </div>`;
     }
 
@@ -679,10 +704,9 @@
 
   // ---- PR-viering ----
   let vieringAutoHide = null;
-  function vierPR(naam, waarde, isTijd) {
+  function vierPR(naam, prTekst) {
     const el = document.getElementById('viering');
-    const tekst = isTijd ? formatTijd(waarde) : formatKg(waarde) + ' kg';
-    el.innerHTML = `<div class="viering-banner"><span>🎉 Nieuw PR! ${escapeHtml(naam)} — ${tekst}</span><button class="sluit" onclick="sluitViering()" aria-label="sluiten">×</button></div>` + confettiHtml();
+    el.innerHTML = `<div class="viering-banner"><span>🎉 Nieuw PR! ${escapeHtml(naam)} — ${prTekst}</span><button class="sluit" onclick="sluitViering()" aria-label="sluiten">×</button></div>` + confettiHtml();
     el.classList.remove('verborgen');
     if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
     if (vieringAutoHide) clearTimeout(vieringAutoHide);
@@ -733,11 +757,14 @@
     if (rustInterval) { clearInterval(rustInterval); rustInterval = null; }
     if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
     piep();
-    const tijd = document.querySelector('#rustklok .tijd');
-    if (tijd) { tijd.textContent = 'klaar! 💪'; tijd.style.color = 'var(--groen)'; }
-    // blijft staan tot je zelf op × klikt; ruime fallback zodat hij niet blijft hangen
+    // herbouw de balk met een duidelijke, goed aantikbare sluitknop
+    const el = document.getElementById('rustklok');
+    el.innerHTML = `
+      <span class="tijd" style="color:var(--groen)">klaar! 💪</span>
+      <button class="mini" style="margin-left:auto" onclick="stopRust()">sluiten ✕</button>`;
+    // blijft staan tot je zelf sluit; ruime fallback zodat hij niet blijft hangen
     if (rustAutoHide) clearTimeout(rustAutoHide);
-    rustAutoHide = setTimeout(stopRust, 15000);
+    rustAutoHide = setTimeout(stopRust, 60000);
   }
   function verlengRust(sec) {
     rustEind = Math.max(rustEind, Date.now()) + sec * 1000;
