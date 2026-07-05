@@ -19,6 +19,16 @@ try {
 }
 export { L };
 
-test('LOGIC-blok is aanwezig en extraheerbaar', () => {
-  assert.ok(match[1].length >= 0);
+const bijna = (a, b) => Math.abs(a - b) < 1e-6;
+
+test('geschatte1RM: 30 kg x 10 reps = 40', () => {
+  assert.ok(bijna(L.geschatte1RM(30, 10), 40));
+});
+
+test('geschatte1RM: 30 kg x 12 reps = 42', () => {
+  assert.ok(bijna(L.geschatte1RM(30, 12), 42));
+});
+
+test('geschatte1RM: 1 herhaling geeft precies het gewicht', () => {
+  assert.ok(bijna(L.geschatte1RM(100, 1), 100));
 });

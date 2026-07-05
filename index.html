@@ -45,7 +45,10 @@
 
   <script>
   // ===== LOGIC START =====
-  // (pure reken-functies komen hier in latere taken)
+  // Geschatte 1RM volgens Epley: gewicht x (1 + reps/30)
+  function geschatte1RM(kg, reps) {
+    return kg * (1 + reps / 30);
+  }
   // ===== LOGIC END =====
 
   function toonTab(naam) {
