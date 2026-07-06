@@ -502,7 +502,8 @@
               <label class="veld" style="flex:1">reps<input id="reps-${o.exerciseId}" type="number" inputmode="numeric"></label>`;
         return `
           <div class="kaart">
-            <div class="rij"><span><b>🏋️ ${escapeHtml(ex.naam || 'onbekend')}</b> ${badgesHtml(ex.spiergroepen)}</span><span class="grijs">${vorigeTekst}</span></div>
+            <div class="rij"><span><b>🏋️ ${escapeHtml(ex.naam || 'onbekend')}</b> ${badgesHtml(ex.spiergroepen)}</span><button class="sluit" onclick="verwijderOefeningUitSessie('${o.exerciseId}')" aria-label="oefening uit deze sessie verwijderen">×</button></div>
+            <div class="grijs" style="font-size:12px;margin-top:2px">${vorigeTekst}</div>
             ${setRijen}
             <div class="rij" style="margin-top:10px;gap:8px">
               ${invoer}
@@ -544,6 +545,17 @@
       s.oefeningen.push({ exerciseId: keuze.value, sets: [] });
       bewaarSessies(sessies);
     }
+    renderVandaag();
+  }
+
+  function verwijderOefeningUitSessie(exerciseId) {
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.datum === geselecteerdeDatum);
+    if (!s) return;
+    const o = s.oefeningen.find(x => x.exerciseId === exerciseId);
+    if (o && o.sets.length > 0 && !confirm('Deze oefening en de gelogde sets uit deze sessie verwijderen?')) return;
+    s.oefeningen = s.oefeningen.filter(x => x.exerciseId !== exerciseId);
+    bewaarSessies(sessies);
     renderVandaag();
   }
 
