@@ -695,10 +695,10 @@
     const n = punten.length;
     const vals = punten.map(waardeVan);
     if (doel > 0) vals.push(doel);
-    let min = Math.min(...vals), max = Math.max(...vals);
-    const marge = (max - min) * 0.12 || 5;
-    min = Math.max(0, min - marge); max = max + marge;
-    const range = (max - min) || 1;
+    const min = 0;                       // as begint altijd op 0
+    let max = Math.max(...vals) * 1.1;    // wat ruimte bovenaan
+    if (!(max > 0)) max = 5;
+    const range = max - min;
     const x = i => L + (n === 1 ? pw / 2 : i * pw / (n - 1));
     const y = v => T + (1 - (v - min) / range) * ph;
     let raster = '';
