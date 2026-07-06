@@ -741,6 +741,27 @@
     return `<svg viewBox="0 0 ${g.W} ${g.H}" width="100%" style="background:#fff;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g.raster}${g.assen}${doelLijn}${lijn}${dots}${g.xlabels}${g.titels}</svg>`;
   }
 
+  // Record-waarde + groei sinds de eerste sessie en over de laatste 4 weken.
+  function groeiBlok(punten, waardeVan) {
+    const waarden = punten.map(waardeVan);
+    const huidig = Math.max(...waarden);
+    const eerste = waarden[0];
+    const grens = verschuifDatum(punten[punten.length - 1].datum, -28);
+    let refMax = eerste;
+    for (const p of punten) if (p.datum <= grens) refMax = Math.max(refMax, waardeVan(p));
+    return {
+      huidig,
+      pctStart: eerste > 0 ? (huidig / eerste - 1) * 100 : 0,
+      pct4wk: refMax > 0 ? (huidig / refMax - 1) * 100 : 0,
+    };
+  }
+  function pctRegel(label, pct) {
+    const r = Math.round(pct);
+    const kleur = r > 0 ? 'var(--groen)' : r < 0 ? '#f87171' : 'var(--grijs)';
+    const teken = r > 0 ? '▲ +' : r < 0 ? '▼ ' : '';
+    return `<div style="font-size:12px;color:${kleur};margin-top:2px">${teken}${r}% <span class="grijs">${label}</span></div>`;
+  }
+
   function renderVoortgang() {
     const oef = laadOefeningen();
     if (geselecteerdeOefeningId === null && oef.length > 0) geselecteerdeOefeningId = oef[0].id;
@@ -759,18 +780,18 @@
       const laatste = punten[punten.length - 1].seconden;
       const delta = punten.length >= 2 ? laatste - punten[punten.length - 2].seconden : 0;
       const prs = punten.filter(p => p.isPR).length;
-      const deltaTekst = delta > 0 ? `<span style="color:var(--groen)">▲ +${delta}s</span>`
-        : delta < 0 ? `<span style="color:#f87171">▼ ${delta}s</span>`
-        : '<span class="grijs">gelijk</span>';
-      const doelPct = doel > 0 ? `<div class="grijs" style="margin:2px 0 10px">🎯 doel: ${formatTijd(laatste)} / ${formatTijd(doel)} · ${Math.round(laatste / doel * 100)}%</div>` : '';
+      const bhold = groeiBlok(punten, p => p.seconden);
+      const doelPct = doel > 0 ? `<div class="grijs" style="margin:10px 0 0">🎯 doel: ${formatTijd(bhold.huidig)} / ${formatTijd(doel)} · ${Math.round(bhold.huidig / doel * 100)}%</div>` : '';
       inhoud = `
         <div style="margin-top:12px">
-          <div class="rij" style="justify-content:flex-start;gap:10px;align-items:baseline">
-            <span style="font-size:30px;font-weight:800">${formatTijd(laatste)}</span>
-            ${deltaTekst}
+          <div style="background:var(--card);border-radius:10px;padding:10px">
+            <div class="grijs" style="font-size:11px">Langste hold 🏅</div>
+            <div style="font-size:23px;font-weight:800">${formatTijd(bhold.huidig)}</div>
+            ${pctRegel('sinds start', bhold.pctStart)}
+            ${pctRegel('laatste 4 wkn', bhold.pct4wk)}
           </div>
-          <div class="grijs" style="margin-bottom:${doel > 0 ? '2px' : '10px'}">langste hold · t.o.v. vorige sessie</div>
           ${doelPct}
+          <div style="margin-top:12px"></div>
           ${tekenGrafiekTijd(punten, doel)}
           <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
             <span style="color:#7c3aed">▬ langste hold</span>
@@ -790,18 +811,27 @@
       const laatste = punten[punten.length - 1].e1rm;
       const delta = punten.length >= 2 ? laatste - punten[punten.length - 2].e1rm : 0;
       const prs = punten.filter(p => p.isPR).length;
-      const deltaTekst = delta > 0 ? `<span style="color:var(--groen)">▲ +${formatKg(delta)} kg</span>`
-        : delta < 0 ? `<span style="color:#f87171">▼ ${formatKg(delta)} kg</span>`
-        : '<span class="grijs">gelijk</span>';
-      const doelPct = doel > 0 ? `<div class="grijs" style="margin:2px 0 10px">🎯 doel: ${formatKg(laatste)} / ${formatKg(doel)} kg · ${Math.round(laatste / doel * 100)}%</div>` : '';
+      const b1rm = groeiBlok(punten, p => p.e1rm);
+      const bgew = groeiBlok(punten, p => p.gewicht);
+      const doelPct = doel > 0 ? `<div class="grijs" style="margin:10px 0 0">🎯 doel: ${formatKg(b1rm.huidig)} / ${formatKg(doel)} kg · ${Math.round(b1rm.huidig / doel * 100)}%</div>` : '';
       inhoud = `
         <div style="margin-top:12px">
-          <div class="rij" style="justify-content:flex-start;gap:10px;align-items:baseline">
-            <span style="font-size:30px;font-weight:800">${formatKg(laatste)}<span class="grijs" style="font-size:15px"> kg</span></span>
-            ${deltaTekst}
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;background:var(--card);border-radius:10px;padding:10px">
+              <div class="grijs" style="font-size:11px">Geschatte 1RM</div>
+              <div style="font-size:23px;font-weight:800">${formatKg(b1rm.huidig)}<span class="grijs" style="font-size:12px"> kg</span></div>
+              ${pctRegel('sinds start', b1rm.pctStart)}
+              ${pctRegel('laatste 4 wkn', b1rm.pct4wk)}
+            </div>
+            <div style="flex:1;background:var(--card);border-radius:10px;padding:10px">
+              <div class="grijs" style="font-size:11px">Zwaarste gewicht 🏅</div>
+              <div style="font-size:23px;font-weight:800">${formatKg(bgew.huidig)}<span class="grijs" style="font-size:12px"> kg</span></div>
+              ${pctRegel('sinds start', bgew.pctStart)}
+              ${pctRegel('laatste 4 wkn', bgew.pct4wk)}
+            </div>
           </div>
-          <div class="grijs" style="margin-bottom:${doel > 0 ? '2px' : '10px'}">geschatte kracht (1RM) · t.o.v. vorige sessie</div>
           ${doelPct}
+          <div style="margin-top:12px"></div>
           ${tekenGrafiek(punten, doel)}
           <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
             <span style="color:#7c3aed">▬ geschatte 1RM</span>
