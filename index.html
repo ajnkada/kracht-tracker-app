@@ -241,6 +241,7 @@
   // ===== LOGIC END =====
   let geselecteerdeOefeningId = null;
   let geselecteerdeDatum = null; // welke dag toont/logt de Vandaag-tab (default: vandaag)
+  let bewerktSet = null;         // { exerciseId, index } als een set inline bewerkt wordt
 
   // Escape tekst die via innerHTML wordt ingevoegd (bijv. oefeningnamen met " of <)
   function escapeHtml(s) {
@@ -528,10 +529,26 @@
         const vorigeTekst = vorige
           ? (isTijd ? `vorige: ${formatTijd(vorige.seconden)}` : `vorige: ${formatKg(vorige.kg)} kg × ${vorige.reps}`)
           : 'geen eerdere data';
-        const setRijen = o.sets.map((s, i) => `
-          <div class="rij grijs" style="padding:3px 0">
-            <span>Set ${i + 1}</span><span>${isTijd ? formatTijd(s.seconden) : `${formatKg(s.kg)} kg × ${s.reps}`}</span>
-          </div>`).join('');
+        const setRijen = o.sets.map((s, i) => {
+          const bewerkt = bewerktSet && bewerktSet.exerciseId === o.exerciseId && bewerktSet.index === i;
+          if (bewerkt) {
+            const velden = isTijd
+              ? `<label class="veld" style="flex:1">sec<input id="bew-sec" type="number" inputmode="numeric" value="${s.seconden}"></label>`
+              : `<label class="veld" style="flex:1">kg<input id="bew-kg" type="number" inputmode="decimal" step="0.5" value="${s.kg}"></label>
+                 <label class="veld" style="flex:1">reps<input id="bew-reps" type="number" inputmode="numeric" value="${s.reps}"></label>`;
+            return `<div class="rij" style="padding:4px 0;gap:6px;align-items:flex-end">
+              <span class="grijs" style="font-size:12px">Set ${i + 1}</span>${velden}
+              <button class="mini" onclick="bewaarBewerkteSet('${o.exerciseId}',${i})">ok</button>
+            </div>`;
+          }
+          return `<div class="rij grijs" style="padding:3px 0">
+            <span>Set ${i + 1}</span>
+            <span style="display:flex;align-items:center;gap:10px">${isTijd ? formatTijd(s.seconden) : `${formatKg(s.kg)} kg × ${s.reps}`}
+              <button class="sluit" style="font-size:14px;padding:0 3px" onclick="startBewerkSet('${o.exerciseId}',${i})" aria-label="set bewerken">✎</button>
+              <button class="sluit" style="font-size:14px;padding:0 3px;color:#f87171" onclick="verwijderSet('${o.exerciseId}',${i})" aria-label="set verwijderen">🗑</button>
+            </span>
+          </div>`;
+        }).join('');
         const invoer = isTijd
           ? `<label class="veld" style="flex:1">seconden<input id="sec-${o.exerciseId}" type="number" inputmode="numeric"></label>`
           : `<label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
@@ -592,6 +609,43 @@
     if (o && o.sets.length > 0 && !confirm('Deze oefening en de gelogde sets uit deze sessie verwijderen?')) return;
     s.oefeningen = s.oefeningen.filter(x => x.exerciseId !== exerciseId);
     bewaarSessies(sessies);
+    renderVandaag();
+  }
+
+  function startBewerkSet(exerciseId, i) {
+    bewerktSet = { exerciseId, index: i };
+    renderVandaag();
+  }
+  function bewaarBewerkteSet(exerciseId, i) {
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.datum === geselecteerdeDatum);
+    if (!s) return;
+    const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+    if (!o || !o.sets[i]) return;
+    const ex = laadOefeningen().find(e => e.id === exerciseId) || {};
+    if (ex.type === 'tijd') {
+      const sec = parseInt(document.getElementById('bew-sec').value, 10);
+      if (!(sec > 0)) return;
+      o.sets[i] = { seconden: sec };
+    } else {
+      const kg = parseFloat(document.getElementById('bew-kg').value);
+      const reps = parseInt(document.getElementById('bew-reps').value, 10);
+      if (!(kg > 0) || !(reps > 0)) return;
+      o.sets[i] = { kg, reps };
+    }
+    bewaarSessies(sessies);
+    bewerktSet = null;
+    renderVandaag();
+  }
+  function verwijderSet(exerciseId, i) {
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.datum === geselecteerdeDatum);
+    if (!s) return;
+    const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+    if (!o) return;
+    o.sets.splice(i, 1);
+    bewaarSessies(sessies);
+    if (bewerktSet && bewerktSet.exerciseId === exerciseId) bewerktSet = null;
     renderVandaag();
   }
 
