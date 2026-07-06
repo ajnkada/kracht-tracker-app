@@ -31,8 +31,17 @@ create table if not exists public.sessions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.templates (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  naam         text not null,
+  oefening_ids text[] not null default '{}',
+  created_at   timestamptz not null default now()
+);
+
 create index if not exists exercises_user_idx on public.exercises(user_id);
 create index if not exists sessions_user_idx  on public.sessions(user_id);
+create index if not exists templates_user_idx on public.templates(user_id);
 
 -- ---------- Hulpfunctie: is de huidige gebruiker admin? ----------
 -- security definer -> draait als eigenaar, omzeilt RLS op profiles (geen recursie).
@@ -72,6 +81,7 @@ create trigger on_auth_user_created
 alter table public.profiles  enable row level security;
 alter table public.exercises enable row level security;
 alter table public.sessions  enable row level security;
+alter table public.templates enable row level security;
 
 -- ---------- Policies: profiles ----------
 drop policy if exists profiles_select on public.profiles;
@@ -121,5 +131,22 @@ drop policy if exists sessions_delete on public.sessions;
 create policy sessions_delete on public.sessions
   for delete using (user_id = auth.uid() or public.is_admin());
 
--- Klaar. Controleer: Table Editor toont profiles/exercises/sessions,
+-- ---------- Policies: templates ----------
+drop policy if exists templates_select on public.templates;
+create policy templates_select on public.templates
+  for select using (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists templates_insert on public.templates;
+create policy templates_insert on public.templates
+  for insert with check (user_id = auth.uid());
+
+drop policy if exists templates_update on public.templates;
+create policy templates_update on public.templates
+  for update using (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists templates_delete on public.templates;
+create policy templates_delete on public.templates
+  for delete using (user_id = auth.uid() or public.is_admin());
+
+-- Klaar. Controleer: Table Editor toont profiles/exercises/sessions/templates,
 -- en bij elke tabel staat "RLS enabled".
