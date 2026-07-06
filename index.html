@@ -821,7 +821,7 @@
       const prs = punten.filter(p => p.isPR).length;
       const b1rm = groeiBlok(punten, p => p.e1rm);
       const bgew = groeiBlok(punten, p => p.gewicht);
-      const doelPct = doel > 0 ? `<div class="grijs" style="margin:10px 0 0">🎯 doel: ${formatKg(b1rm.huidig)} / ${formatKg(doel)} kg · ${Math.round(b1rm.huidig / doel * 100)}%</div>` : '';
+      const doelPct = doel > 0 ? `<div class="grijs" style="margin:10px 0 0">🎯 doel (zwaarste gewicht): ${formatKg(bgew.huidig)} / ${formatKg(doel)} kg · ${Math.round(bgew.huidig / doel * 100)}%</div>` : '';
       inhoud = `
         <div style="margin-top:12px">
           <div style="display:flex;gap:10px">
@@ -861,7 +861,7 @@
 
     const doelBlok = huidigeOef ? `
       <div style="margin-top:16px">
-        <label class="veld">🎯 Doel (${isTijd ? 'in seconden' : 'geschatte 1RM in kg'})
+        <label class="veld">🎯 Doel (${isTijd ? 'in seconden' : 'zwaarste gewicht in kg'})
           <div class="rij" style="gap:8px">
             <input id="doel-input" type="number" inputmode="${isTijd ? 'numeric' : 'decimal'}" step="${isTijd ? '1' : '0.5'}" value="${doel || ''}" placeholder="${isTijd ? 'bijv. 90' : 'bijv. 110'}" style="flex:1">
             <button class="mini" onclick="stelDoelIn('${geselecteerdeOefeningId}')">opslaan</button>
