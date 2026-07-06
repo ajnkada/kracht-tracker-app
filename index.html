@@ -725,9 +725,11 @@
     const doelLijn = doel > 0 ? `<line x1="${g.L}" y1="${y(doel)}" x2="${g.W - g.R}" y2="${y(doel)}" stroke="#059669" stroke-width="1.5" stroke-dasharray="4 3"/><text x="${g.W - g.R}" y="${y(doel) - 3}" fill="#059669" font-size="9" text-anchor="end">doel ${formatKg(doel)}</text>` : '';
     const medaille = (cx, cy) => `<text x="${cx}" y="${cy}" font-size="14" text-anchor="middle" dominant-baseline="central">🏅</text>`;
     const lijnGewicht = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.gewicht)}`).join(' ')}" fill="none" stroke="#0891b2" stroke-width="2.5" stroke-linejoin="round"/>`;
-    const dotsGewicht = punten.map((p,i) => p.isGewichtPR ? medaille(x(i), y(p.gewicht)) : `<circle cx="${x(i)}" cy="${y(p.gewicht)}" r="3" fill="#0891b2"/>`).join('');
+    const laatsteGewPR = punten.reduce((a, p, i) => p.isGewichtPR ? i : a, -1);
+    const dotsGewicht = punten.map((p,i) => i === laatsteGewPR ? medaille(x(i), y(p.gewicht)) : p.isGewichtPR ? `<circle cx="${x(i)}" cy="${y(p.gewicht)}" r="4" fill="#f59e0b"/>` : `<circle cx="${x(i)}" cy="${y(p.gewicht)}" r="3" fill="#0891b2"/>`).join('');
     const lijn1rm = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.e1rm)}`).join(' ')}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>`;
-    const dots1rm = punten.map((p,i) => p.isPR ? medaille(x(i), y(p.e1rm)) : `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="3" fill="#7c3aed"/>`).join('');
+    const laatste1rmPR = punten.reduce((a, p, i) => p.isPR ? i : a, -1);
+    const dots1rm = punten.map((p,i) => i === laatste1rmPR ? medaille(x(i), y(p.e1rm)) : p.isPR ? `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="4" fill="#f59e0b"/>` : `<circle cx="${x(i)}" cy="${y(p.e1rm)}" r="3" fill="#7c3aed"/>`).join('');
     return `<svg viewBox="0 0 ${g.W} ${g.H}" width="100%" style="background:#fff;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g.raster}${g.assen}${doelLijn}${lijnGewicht}${dotsGewicht}${lijn1rm}${dots1rm}${g.xlabels}${g.titels}</svg>`;
   }
 
@@ -738,8 +740,10 @@
     const { x, y } = g;
     const doelLijn = doel > 0 ? `<line x1="${g.L}" y1="${y(doel)}" x2="${g.W - g.R}" y2="${y(doel)}" stroke="#059669" stroke-width="1.5" stroke-dasharray="4 3"/><text x="${g.W - g.R}" y="${y(doel) - 3}" fill="#059669" font-size="9" text-anchor="end">doel ${formatTijd(doel)}</text>` : '';
     const lijn = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.seconden)}`).join(' ')}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>`;
-    const dots = punten.map((p,i) => p.isPR
+    const laatstePR = punten.reduce((a, p, i) => p.isPR ? i : a, -1);
+    const dots = punten.map((p,i) => i === laatstePR
       ? `<text x="${x(i)}" y="${y(p.seconden)}" font-size="14" text-anchor="middle" dominant-baseline="central">🏅</text>`
+      : p.isPR ? `<circle cx="${x(i)}" cy="${y(p.seconden)}" r="4" fill="#f59e0b"/>`
       : `<circle cx="${x(i)}" cy="${y(p.seconden)}" r="3" fill="#7c3aed"/>`).join('');
     return `<svg viewBox="0 0 ${g.W} ${g.H}" width="100%" style="background:#fff;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g.raster}${g.assen}${doelLijn}${lijn}${dots}${g.xlabels}${g.titels}</svg>`;
   }
@@ -798,7 +802,8 @@
           ${tekenGrafiekTijd(punten, doel)}
           <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
             <span style="color:#7c3aed">▬ langste hold</span>
-            <span>🏅 PR</span>
+            <span style="color:#f59e0b">● PR</span>
+            <span>🏅 huidig record</span>
             ${doel > 0 ? '<span style="color:#059669">╌ doel</span>' : ''}
           </div>
           <div class="rij" style="gap:8px;margin-top:14px">
@@ -839,7 +844,8 @@
           <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
             <span style="color:#7c3aed">▬ geschatte 1RM</span>
             <span style="color:#0891b2">▬ werkelijk gewicht</span>
-            <span>🏅 PR</span>
+            <span style="color:#f59e0b">● PR</span>
+            <span>🏅 huidig record</span>
             ${doel > 0 ? '<span style="color:#059669">╌ doel</span>' : ''}
           </div>
           <div class="rij" style="gap:8px;margin-top:14px">
