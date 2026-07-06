@@ -550,7 +550,7 @@
             <span>Set ${i + 1}</span>
             <span style="display:flex;align-items:center;gap:10px">${isTijd ? formatTijd(s.seconden) : `${formatKg(s.kg)} kg × ${s.reps}`}
               <button class="sluit" style="font-size:14px;padding:0 3px" onclick="startBewerkSet('${o.exerciseId}',${i})" aria-label="set bewerken">✎</button>
-              <button class="sluit" style="font-size:14px;padding:0 3px;color:#f87171" onclick="verwijderSet('${o.exerciseId}',${i})" aria-label="set verwijderen">🗑</button>
+              <button class="sluit" style="font-size:14px;padding:0 3px;color:var(--grijs)" onclick="verwijderSet('${o.exerciseId}',${i})" aria-label="set verwijderen">🗑</button>
             </span>
           </div>`;
         }).join('');
@@ -586,7 +586,7 @@
         ${cacheTemplates.length ? cacheTemplates.map(t => `
           <div class="rij" style="gap:8px;margin-bottom:6px">
             <button class="mini" style="flex:1;text-align:left" onclick="laadTemplateInSessie('${t.id}')">▶ ${escapeHtml(t.naam)} <span class="grijs">(${t.oefening_ids.length})</span></button>
-            <button class="sluit" style="color:#f87171" onclick="verwijderTemplate('${t.id}')" aria-label="sjabloon verwijderen">🗑</button>
+            <button class="sluit" style="color:var(--grijs)" onclick="verwijderTemplate('${t.id}')" aria-label="sjabloon verwijderen">🗑</button>
           </div>`).join('') : '<p class="grijs" style="font-size:12px">Nog geen sjablonen.</p>'}
         <button class="ghost" style="width:100%;margin-top:6px" onclick="bewaarTemplate()">💾 Deze sessie opslaan als sjabloon</button>
       </div>`;
