@@ -411,14 +411,64 @@
 
   function renderAccount() {
     const email = huidigeGebruiker ? huidigeGebruiker.email : '';
+    const isAdmin = huidigeRol === 'admin';
+    const adminBlok = isAdmin ? `
+      <h2 style="margin-top:26px;font-size:16px">🛠️ Admin — gebruikers</h2>
+      <p class="sub">Nieuwe gebruikers voeg je toe via het Supabase-dashboard (Authentication → Users). Hier beheer je rollen en data.</p>
+      <button class="ghost" style="width:100%;margin-top:10px" onclick="laadGebruikers()">Gebruikers laden</button>
+      <div id="admin-lijst" style="margin-top:12px"></div>` : '';
     document.getElementById('tab-account').innerHTML = `
       <h1>Account</h1>
       <div class="kaart" style="margin-top:12px">
         <div class="grijs">Ingelogd als</div>
-        <div style="font-weight:600;word-break:break-all">${escapeHtml(email)}</div>
+        <div style="font-weight:600;word-break:break-all">${escapeHtml(email)}${isAdmin ? ' <span class="badge">admin</span>' : ''}</div>
       </div>
       <button class="ghost" style="width:100%;margin-top:8px;color:#f87171;border-color:#f87171" onclick="uitloggen()">Uitloggen</button>
+      ${adminBlok}
     `;
+  }
+
+  // ---- Admin ----
+  async function laadGebruikers() {
+    const el = document.getElementById('admin-lijst');
+    el.innerHTML = '<p class="grijs">Laden…</p>';
+    const { data: profs, error } = await sb.from('profiles').select('id,email,rol,created_at').order('created_at');
+    if (error) { el.innerHTML = '<p class="grijs">Fout: ' + escapeHtml(error.message) + '</p>'; return; }
+    const kaarten = await Promise.all((profs || []).map(async p => {
+      const [oefC, sessC] = await Promise.all([
+        sb.from('exercises').select('id', { count: 'exact', head: true }).eq('user_id', p.id),
+        sb.from('sessions').select('id', { count: 'exact', head: true }).eq('user_id', p.id),
+      ]);
+      const jij = p.id === huidigeGebruiker.id;
+      return `
+        <div class="kaart">
+          <div class="rij"><span><b>${escapeHtml(p.email || '—')}</b> <span class="badge">${escapeHtml(p.rol)}</span>${jij ? ' <span class="grijs">(jij)</span>' : ''}</span></div>
+          <div class="grijs" style="margin-top:6px">${oefC.count || 0} oefeningen · ${sessC.count || 0} sessies</div>
+          <div class="rij" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+            ${p.rol === 'admin'
+              ? `<button class="mini" onclick="wijzigRol('${p.id}','gebruiker')">maak gebruiker</button>`
+              : `<button class="mini" onclick="wijzigRol('${p.id}','admin')">maak admin</button>`}
+            <button class="gevaar mini" onclick="wisGebruikerData('${p.id}')">wis data</button>
+          </div>
+        </div>`;
+    }));
+    el.innerHTML = kaarten.join('') || '<p class="grijs">Geen gebruikers.</p>';
+  }
+
+  async function wijzigRol(id, rol) {
+    const { error } = await sb.from('profiles').update({ rol }).eq('id', id);
+    if (error) { alert('Fout: ' + error.message); return; }
+    if (id === huidigeGebruiker.id) huidigeRol = rol; // eigen rol bijwerken
+    laadGebruikers();
+  }
+
+  async function wisGebruikerData(id) {
+    if (!confirm('Alle oefeningen én sessies van deze gebruiker verwijderen? Dit kan niet ongedaan worden gemaakt.')) return;
+    const s = await sb.from('sessions').delete().eq('user_id', id);
+    const e = await sb.from('exercises').delete().eq('user_id', id);
+    if (s.error || e.error) { alert('Fout bij verwijderen'); return; }
+    if (id === huidigeGebruiker.id) { cacheOefeningen = []; cacheSessies = []; }
+    laadGebruikers();
   }
 
   function datumKort(iso) {
@@ -844,7 +894,15 @@
   const SUPABASE_KEY = 'sb_publishable_Z1LqzJYtWC2GUv8V3Kceug_6wG44pat';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   let huidigeGebruiker = null;
+  let huidigeRol = 'gebruiker';
   let appGestart = false;
+
+  async function laadRol() {
+    try {
+      const { data } = await sb.from('profiles').select('rol').eq('id', huidigeGebruiker.id).single();
+      huidigeRol = (data && data.rol) || 'gebruiker';
+    } catch (e) { huidigeRol = 'gebruiker'; }
+  }
 
   async function stuurInloglink() {
     const email = (document.getElementById('login-email').value || '').trim();
@@ -863,6 +921,7 @@
   async function startApp() {
     if (appGestart) return;
     appGestart = true;
+    await laadRol();            // gebruiker of admin?
     await laadAllesUitCloud();  // data van deze gebruiker uit de cloud
     zaaiStartlijst();           // eerste keer: startlijst met 42 oefeningen
     renderVandaag();
