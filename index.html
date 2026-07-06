@@ -592,11 +592,19 @@
   }
   function renderOefeningen() {
     const lijst = laadOefeningen();
-    const items = lijst.map(o => `
+    const kaartHtml = o => `
       <div class="kaart rij">
         <span>💪 ${escapeHtml(o.naam)} ${badgesHtml(o.spiergroepen)}${o.type === 'tijd' ? ' <span class="badge" style="color:var(--accent)">⏱️ tijd</span>' : ''}</span>
         <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
-      </div>`).join('');
+      </div>`;
+    // Groepeer op de eerste spiergroep; kopjes in vaste volgorde, alfabetisch daarbinnen.
+    const groepVan = o => (o.spiergroepen && o.spiergroepen[0]) || 'Overig';
+    let items = '';
+    for (const g of [...SPIERGROEPEN, 'Overig']) {
+      const inGroep = lijst.filter(o => groepVan(o) === g).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+      if (inGroep.length === 0) continue;
+      items += `<h2 style="font-size:14px;color:var(--paars);margin:18px 0 8px">${escapeHtml(g)}</h2>` + inGroep.map(kaartHtml).join('');
+    }
     const groepChips = SPIERGROEPEN.map(g => `<span class="chip" data-groep="${g}" onclick="toggleChip(this)">${g}</span>`).join(' ');
     document.getElementById('tab-oefeningen').innerHTML = `
       <h1>Oefeningen</h1>
