@@ -8,7 +8,7 @@ const match = html.match(/\/\/ ===== LOGIC START =====([\s\S]*?)\/\/ ===== LOGIC
 if (!match) throw new Error('LOGIC-blok niet gevonden in index.html');
 
 const sandbox = { module: { exports: {} } };
-const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR, isNieuwGewichtPR, besteTijd, progressieTijdVoorOefening, recordsTijdVoorOefening, isNieuweTijdPR, formatTijd };';
+const exportRegel = '\nmodule.exports = { geschatte1RM, besteSet1RM, progressieVoorOefening, vorigeSet, formatKg, recordsVoorOefening, isNieuwePR, isNieuwGewichtPR, besteTijd, progressieTijdVoorOefening, recordsTijdVoorOefening, isNieuweTijdPR, formatTijd, netteNaam };';
 // In latere taken zijn deze functies gedefinieerd; nu vangen we de ReferenceError op.
 let L = {};
 try {
@@ -188,6 +188,13 @@ test('isNieuweTijdPR: niet langer is geen PR', () => {
 
 test('isNieuweTijdPR: eerste tijd-set ooit is geen PR', () => {
   assert.equal(L.isNieuweTijdPR(tijdSessies, 'nieuw', 99), false);
+});
+
+test('netteNaam: elk woord met hoofdletter', () => {
+  assert.equal(L.netteNaam('lat pulldown'), 'Lat Pulldown');
+  assert.equal(L.netteNaam('romanian deadlift'), 'Romanian Deadlift');
+  assert.equal(L.netteNaam('bankdrukken'), 'Bankdrukken');
+  assert.equal(L.netteNaam('  incline  bankdrukken '), 'Incline  Bankdrukken');
 });
 
 test('formatTijd: onder de minuut in seconden', () => {

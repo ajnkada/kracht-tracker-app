@@ -234,6 +234,10 @@
     if (sec < 60) return sec + 's';
     return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
   }
+  // Elk woord met een hoofdletter beginnen (rest onaangeroerd): "lat pulldown" -> "Lat Pulldown".
+  function netteNaam(naam) {
+    return String(naam).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+  }
   // ===== LOGIC END =====
   let geselecteerdeOefeningId = null;
   let geselecteerdeDatum = null; // welke dag toont/logt de Vandaag-tab (default: vandaag)
@@ -341,17 +345,49 @@
     ]);
     if (oefRes.error) meldOpslagfout(oefRes.error);
     if (sessRes.error) meldOpslagfout(sessRes.error);
-    cacheOefeningen = (oefRes.data || []).map(r => {
-      const o = { id: r.id, naam: r.naam, spiergroepen: r.spiergroepen || [], type: r.type || 'reps' };
+    const origNamen = new Map((oefRes.data || []).map(r => [r.id, r.naam]));
+    const rauw = (oefRes.data || []).map(r => {
+      const o = { id: r.id, naam: netteNaam(r.naam), spiergroepen: r.spiergroepen || [], type: r.type || 'reps' };
       if (r.doel !== null && r.doel !== undefined) o.doel = Number(r.doel);
       return o;
     });
     cacheSessies = (sessRes.data || []).map(r => ({ id: r.id, datum: r.datum, oefeningen: r.oefeningen || [] }));
+
+    // Ontdubbelen op naam (eerste behouden) + genormaliseerde namen.
+    const gezien = new Map();   // naam -> behouden id
+    const remap = {};           // dubbele id -> behouden id
+    const teVerwijderen = [];
+    let naamGewijzigd = false;
+    cacheOefeningen = [];
+    for (const o of rauw) {
+      if (origNamen.get(o.id) !== o.naam) naamGewijzigd = true;
+      if (gezien.has(o.naam)) {
+        remap[o.id] = gezien.get(o.naam);
+        teVerwijderen.push(o.id);
+      } else {
+        gezien.set(o.naam, o.id);
+        cacheOefeningen.push(o);
+      }
+    }
+
+    if (teVerwijderen.length) {
+      // sessie-verwijzingen naar de behouden id herpunten
+      let sessiesGewijzigd = false;
+      for (const s of cacheSessies) {
+        for (const oe of s.oefeningen) {
+          if (remap[oe.exerciseId]) { oe.exerciseId = remap[oe.exerciseId]; sessiesGewijzigd = true; }
+        }
+      }
+      await sb.from('exercises').delete().in('id', teVerwijderen);
+      if (sessiesGewijzigd) bewaarSessies(cacheSessies);
+    }
+    // opschoning/normalisatie in de database bewaren
+    if (teVerwijderen.length || naamGewijzigd) bewaarOefeningen(cacheOefeningen);
   }
 
   function zaaiStartlijst() {
     if (laadOefeningen().length === 0) {
-      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: o.naam, spiergroepen: o.spiergroepen.slice(), type: o.type || 'reps' })));
+      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: netteNaam(o.naam), spiergroepen: o.spiergroepen.slice(), type: o.type || 'reps' })));
     }
   }
 
@@ -576,7 +612,7 @@
       nieuweSet = { kg, reps };
       const delen = [];
       if (isNieuwePR(sessiesNu, exerciseId, geschatte1RM(kg, reps))) delen.push(`1RM ${formatKg(geschatte1RM(kg, reps))} kg`);
-      if (isNieuwGewichtPR(sessiesNu, exerciseId, kg)) delen.push(`zwaarste ${formatKg(kg)} kg`);
+      if (isNieuwGewichtPR(sessiesNu, exerciseId, kg)) delen.push(`Zwaarste ${formatKg(kg)} kg`);
       if (delen.length) { pr = true; prTekst = delen.join(' · '); }
     }
     zorgVoorSessieOpDatum(geselecteerdeDatum);
@@ -634,7 +670,7 @@
     if (groepen.length === 0) { alert('Kies minstens één spiergroep.'); return; }
     const type = document.getElementById('nieuwe-type').value;
     const lijst = laadOefeningen();
-    lijst.push({ id: nieuwId(), naam, spiergroepen: groepen, type });
+    lijst.push({ id: nieuwId(), naam: netteNaam(naam), spiergroepen: groepen, type });
     bewaarOefeningen(lijst);
     renderOefeningen();
   }
