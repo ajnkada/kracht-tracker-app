@@ -747,7 +747,7 @@
     const huidigeOef = oef.find(o => o.id === geselecteerdeOefeningId) || null;
     const isTijd = !!huidigeOef && huidigeOef.type === 'tijd';
     const doel = huidigeOef && huidigeOef.doel ? huidigeOef.doel : 0;
-    const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${escapeHtml(o.naam)}</option>`).join('');
+    const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${escapeHtml(o.naam)}${o.spiergroepen && o.spiergroepen.length ? ' — ' + escapeHtml(o.spiergroepen.join(', ')) : ''}</option>`).join('');
     const punten = !geselecteerdeOefeningId ? []
       : (isTijd ? progressieTijdVoorOefening(laadSessies(), geselecteerdeOefeningId)
                 : progressieVoorOefening(laadSessies(), geselecteerdeOefeningId));
