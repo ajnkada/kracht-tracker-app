@@ -83,7 +83,7 @@
     <button data-tab="vandaag" class="actief" onclick="toonTab('vandaag')">📋 Vandaag</button>
     <button data-tab="oefeningen" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
     <button data-tab="voortgang" onclick="toonTab('voortgang')">📈 Voortgang</button>
-    <button data-tab="records" onclick="toonTab('records')">🏅 Records</button>
+    <button data-tab="records" onclick="toonTab('records')">🏅 PR's</button>
     <button data-tab="account" onclick="toonTab('account')">👤 Account</button>
   </nav>
 
@@ -910,7 +910,7 @@
         </div>`;
     }).filter(Boolean).join('');
     document.getElementById('tab-records').innerHTML = `
-      <h1>Records</h1>
+      <h1>Persoonlijke Records</h1>
       <p class="sub">Je persoonlijke toppers per oefening.</p>
       <div style="margin-top:12px">${kaarten || '<p class="grijs">Nog geen records. Log eerst wat sessies bij "Vandaag".</p>'}</div>
     `;
