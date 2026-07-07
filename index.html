@@ -1136,6 +1136,11 @@
           <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:${d.pct >= 100 ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${d.pct}%"></div></div>
         </div>`).join('')}</div>` : ''}
 
+      <div class="kaart" style="border-left:3px solid var(--paars);font-style:italic;color:var(--tekst);margin-top:22px">
+        <div style="font-size:10px;color:var(--grijs);font-style:normal;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Quote van de dag</div>
+        “${escapeHtml(quoteVanDeDag())}”
+      </div>
+
       ${groepen.length ? `
       <h2 style="font-size:16px;margin-top:22px">Volume per spiergroep (deze week)</h2>
       <div style="margin-top:8px">${groepen.map(([g, v]) => `
@@ -1144,10 +1149,6 @@
           <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:var(--paars);height:100%;width:${Math.round(v / maxG * 100)}%"></div></div>
         </div>`).join('')}</div>` : ''}
 
-      <div class="kaart" style="border-left:3px solid var(--paars);font-style:italic;color:var(--tekst);margin-top:22px">
-        <div style="font-size:10px;color:var(--grijs);font-style:normal;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Quote van de dag</div>
-        “${escapeHtml(quoteVanDeDag())}”
-      </div>
       ${laatsteHtml ? `<div style="margin-top:22px">${laatsteHtml}</div>` : ''}
     `;
     // standaard op het middelste paneel ("Deze week")
