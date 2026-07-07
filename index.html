@@ -1581,16 +1581,16 @@
         const r = recordsTijdVoorOefening(sessies, o.id);
         if (!r) return '';
         return `
-          <div class="kaart">
-            <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span></div>
+          <div class="kaart" style="cursor:pointer" onclick="naarVoortgang('${o.id}')">
+            <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span><span class="grijs">›</span></div>
             <div class="rij grijs" style="margin-top:8px"><span>🏅 Beste tijd</span><span style="color:var(--goud)">${formatTijd(r.besteTijd)} · ${datumKort(r.besteTijdDatum)}</span></div>
           </div>`;
       }
       const r = recordsVoorOefening(sessies, o.id);
       if (!r) return '';
       return `
-        <div class="kaart">
-          <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span></div>
+        <div class="kaart" style="cursor:pointer" onclick="naarVoortgang('${o.id}')">
+          <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span><span class="grijs">›</span></div>
           <div class="rij grijs" style="margin-top:8px"><span>🏅 Beste 1RM</span><span style="color:var(--goud)">${formatKg(r.beste1rm)} kg · ${datumKort(r.beste1rmDatum)}</span></div>
           <div class="rij grijs" style="margin-top:4px"><span>🏋️ Zwaarste gewicht</span><span style="color:var(--accent)">${formatKg(r.besteGewicht)} kg · ${datumKort(r.besteGewichtDatum)}</span></div>
         </div>`;
@@ -1600,6 +1600,11 @@
       <p class="sub">Je persoonlijke toppers per oefening.</p>
       <div style="margin-top:12px">${kaarten || '<p class="grijs">Nog geen records. Log eerst wat sessies bij "Vandaag".</p>'}</div>
     `;
+  }
+
+  function naarVoortgang(id) {
+    geselecteerdeOefeningId = id;
+    toonTab('voortgang');
   }
 
   // ---- PR-viering ----
