@@ -1124,6 +1124,10 @@
       <div class="grijs" style="text-align:center;font-size:11px;margin-top:6px">‹ swipe: totaal · week · maand ›</div>
       <div class="grijs" style="margin-top:10px;font-size:13px">🔥 ${streak} ${streak === 1 ? 'week' : 'weken'} op rij</div>
 
+      ${prEvents.length ? `
+      <h2 style="font-size:16px;margin-top:22px">Recente records 🏅</h2>
+      <div style="margin-top:8px">${prEvents.slice(0, 5).map(e => `<div class="rij grijs" style="padding:4px 0"><span>🏅 ${escapeHtml(e.naam)} — ${e.tekst}</span><span>${datumKort(e.datum)}</span></div>`).join('')}</div>` : ''}
+
       ${doelen.length ? `
       <h2 style="font-size:16px;margin-top:22px;cursor:pointer" onclick="toonTab('doelen')">Doelen 🎯 <span class="grijs" style="font-size:12px">${doelen.length > 3 ? 'alle ' + doelen.length + ' ›' : 'alle ›'}</span></h2>
       <div style="margin-top:8px">${doelen.slice(0, 3).map(d => `
@@ -1131,10 +1135,6 @@
           <div class="rij grijs" style="font-size:12px"><span>${escapeHtml(d.naam)} ›</span><span>${d.huidigTekst} / ${d.doelTekst} · ${d.pct}%</span></div>
           <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:${d.pct >= 100 ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${d.pct}%"></div></div>
         </div>`).join('')}</div>` : ''}
-
-      ${prEvents.length ? `
-      <h2 style="font-size:16px;margin-top:22px">Recente records 🏅</h2>
-      <div style="margin-top:8px">${prEvents.slice(0, 5).map(e => `<div class="rij grijs" style="padding:4px 0"><span>🏅 ${escapeHtml(e.naam)} — ${e.tekst}</span><span>${datumKort(e.datum)}</span></div>`).join('')}</div>` : ''}
 
       ${groepen.length ? `
       <h2 style="font-size:16px;margin-top:22px">Volume per spiergroep (deze week)</h2>
