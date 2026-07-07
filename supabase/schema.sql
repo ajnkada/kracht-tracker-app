@@ -21,8 +21,11 @@ create table if not exists public.exercises (
   type         text not null default 'reps' check (type in ('reps','tijd')),
   doel         numeric,
   favoriet     boolean not null default false,
+  lichaamsgewicht boolean not null default false,
   created_at   timestamptz not null default now()
 );
+alter table public.exercises add column if not exists favoriet boolean not null default false;
+alter table public.exercises add column if not exists lichaamsgewicht boolean not null default false;
 alter table public.exercises add column if not exists favoriet boolean not null default false;
 
 create table if not exists public.sessions (

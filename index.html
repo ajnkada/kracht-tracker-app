@@ -237,6 +237,48 @@
     if (sec < 60) return sec + 's';
     return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
   }
+
+  // ---- Lichaamsgewicht-oefeningen (bijv. push-ups), gemeten in herhalingen ----
+  function besteReps(sets) {
+    if (!sets || sets.length === 0) return 0;
+    return Math.max(...sets.map(s => s.reps || 0));
+  }
+  function progressieLichaamVoorOefening(sessies, exerciseId) {
+    const relevant = sessies
+      .filter(s => s.oefeningen.some(o => o.exerciseId === exerciseId && o.sets.length > 0))
+      .slice()
+      .sort((a, b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : 0);
+    let max = -Infinity;
+    const punten = [];
+    for (const s of relevant) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      const reps = besteReps(o.sets);
+      const isPR = reps > max;
+      if (isPR) max = reps;
+      punten.push({ datum: s.datum, reps, isPR });
+    }
+    return punten;
+  }
+  function recordsLichaamVoorOefening(sessies, exerciseId) {
+    let beste = 0, besteDatum = null;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o || o.sets.length === 0) continue;
+      const r = besteReps(o.sets);
+      if (r > beste) { beste = r; besteDatum = s.datum; }
+    }
+    if (besteDatum === null) return null;
+    return { besteReps: beste, besteRepsDatum: besteDatum };
+  }
+  function isNieuweRepsPR(sessies, exerciseId, nieuweReps) {
+    let besteBestaand = 0, aantal = 0;
+    for (const s of sessies) {
+      const o = s.oefeningen.find(o => o.exerciseId === exerciseId);
+      if (!o) continue;
+      for (const st of o.sets) { if (st.reps !== undefined) { aantal++; if (st.reps > besteBestaand) besteBestaand = st.reps; } }
+    }
+    return aantal > 0 && nieuweReps > besteBestaand;
+  }
   // Elk woord met een hoofdletter beginnen (rest onaangeroerd): "lat pulldown" -> "Lat Pulldown".
   function netteNaam(naam) {
     const HERNOEM = { 'Schouderpers': 'Shoulder Press' };
@@ -261,6 +303,8 @@
 
   // ---- Opslag (localStorage) ----
   const SPIERGROEPEN = ['Bicep','Tricep','Borst','Rug','Schouders','Benen','Billen','Buik','Onderarmen'];
+  // Startlijst-oefeningen op lichaamsgewicht (herhalingen, geen kg).
+  const LICHAAM_NAMEN = new Set(['Push-up', 'Pull-up', 'Dips']);
   const STARTLIJST = [
     { naam: 'Bankdrukken', spiergroepen: ['Borst','Tricep'] },
     { naam: 'Incline bankdrukken', spiergroepen: ['Borst','Schouders'] },
@@ -331,7 +375,7 @@
     const rows = arr.map(o => ({
       id: o.id, user_id: uid, naam: o.naam,
       spiergroepen: o.spiergroepen || [], type: o.type || 'reps',
-      doel: (o.doel === undefined ? null : o.doel), favoriet: !!o.favoriet
+      doel: (o.doel === undefined ? null : o.doel), favoriet: !!o.favoriet, lichaamsgewicht: !!o.lichaamsgewicht
     }));
     sb.from('exercises').upsert(rows).then(({ error }) => {
       if (!error) return;
@@ -365,7 +409,8 @@
     if (sessRes.error) meldOpslagfout(sessRes.error);
     const origNamen = new Map((oefRes.data || []).map(r => [r.id, r.naam]));
     const rauw = (oefRes.data || []).map(r => {
-      const o = { id: r.id, naam: netteNaam(r.naam), spiergroepen: r.spiergroepen || [], type: r.type || 'reps', favoriet: !!r.favoriet };
+      const nm = netteNaam(r.naam);
+      const o = { id: r.id, naam: nm, spiergroepen: r.spiergroepen || [], type: r.type || 'reps', favoriet: !!r.favoriet, lichaamsgewicht: !!r.lichaamsgewicht || LICHAAM_NAMEN.has(nm) };
       if (r.doel !== null && r.doel !== undefined) o.doel = Number(r.doel);
       return o;
     });
@@ -409,7 +454,7 @@
 
   function zaaiStartlijst() {
     if (laadOefeningen().length === 0) {
-      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: netteNaam(o.naam), spiergroepen: o.spiergroepen.slice(), type: o.type || 'reps' })));
+      bewaarOefeningen(STARTLIJST.map(o => ({ id: nieuwId(), naam: netteNaam(o.naam), spiergroepen: o.spiergroepen.slice(), type: o.type || 'reps', lichaamsgewicht: LICHAAM_NAMEN.has(o.naam) })));
     }
   }
 
@@ -1031,15 +1076,20 @@
       kaarten = sessie.oefeningen.map(o => {
         const ex = oefVan(o.exerciseId);
         const isTijd = ex.type === 'tijd';
+        const isLichaam = !isTijd && !!ex.lichaamsgewicht;
         const vorige = vorigeSet(sessies, o.exerciseId, geselecteerdeDatum);
         const vorigeTekst = vorige
-          ? (isTijd ? `vorige: ${formatTijd(vorige.seconden)}` : `vorige: ${formatKg(vorige.kg)} kg × ${vorige.reps}`)
+          ? (isTijd ? `vorige: ${formatTijd(vorige.seconden)}`
+            : isLichaam ? `vorige: ${vorige.reps} herhalingen`
+            : `vorige: ${formatKg(vorige.kg)} kg × ${vorige.reps}`)
           : 'geen eerdere data';
         const setRijen = o.sets.map((s, i) => {
           const bewerkt = bewerktSet && bewerktSet.exerciseId === o.exerciseId && bewerktSet.index === i;
           if (bewerkt) {
             const velden = isTijd
               ? `<label class="veld" style="flex:1">sec<input id="bew-sec" type="number" inputmode="numeric" value="${s.seconden}"></label>`
+              : isLichaam
+              ? `<label class="veld" style="flex:1">reps<input id="bew-reps" type="number" inputmode="numeric" value="${s.reps}"></label>`
               : `<label class="veld" style="flex:1">kg<input id="bew-kg" type="number" inputmode="decimal" step="0.5" value="${s.kg}"></label>
                  <label class="veld" style="flex:1">reps<input id="bew-reps" type="number" inputmode="numeric" value="${s.reps}"></label>`;
             return `<div class="rij" style="padding:4px 0;gap:6px;align-items:flex-end">
@@ -1047,9 +1097,10 @@
               <button class="mini" onclick="bewaarBewerkteSet('${o.exerciseId}',${i})">ok</button>
             </div>`;
           }
+          const waarde = isTijd ? formatTijd(s.seconden) : isLichaam ? `${s.reps} herhalingen` : `${formatKg(s.kg)} kg × ${s.reps}`;
           return `<div class="rij grijs" style="padding:3px 0">
             <span>Set ${i + 1}</span>
-            <span style="display:flex;align-items:center;gap:10px">${isTijd ? formatTijd(s.seconden) : `${formatKg(s.kg)} kg × ${s.reps}`}
+            <span style="display:flex;align-items:center;gap:10px">${waarde}
               <button class="sluit" style="font-size:14px;padding:0 3px" onclick="startBewerkSet('${o.exerciseId}',${i})" aria-label="set bewerken">✎</button>
               <button class="sluit" style="font-size:14px;padding:0 3px;color:var(--grijs)" onclick="verwijderSet('${o.exerciseId}',${i})" aria-label="set verwijderen">🗑</button>
             </span>
@@ -1057,6 +1108,8 @@
         }).join('');
         const invoer = isTijd
           ? `<label class="veld" style="flex:1">seconden<input id="sec-${o.exerciseId}" type="number" inputmode="numeric"></label>`
+          : isLichaam
+          ? `<label class="veld" style="flex:1">herhalingen (lichaamsgewicht)<input id="reps-${o.exerciseId}" type="number" inputmode="numeric"></label>`
           : `<label class="veld" style="flex:1">kg<input id="kg-${o.exerciseId}" type="number" inputmode="decimal" step="0.5"></label>
               <label class="veld" style="flex:1">reps<input id="reps-${o.exerciseId}" type="number" inputmode="numeric"></label>`;
         return `
@@ -1163,7 +1216,7 @@
     let volume = 0, reps = 0;
     for (const o of (sessie.oefeningen || [])) {
       for (const st of o.sets) {
-        if (st.kg !== undefined && st.reps !== undefined) { volume += st.kg * st.reps; reps += st.reps; }
+        if (st.reps !== undefined) { reps += st.reps; if (st.kg !== undefined) volume += st.kg * st.reps; }
       }
     }
     return { volume, reps };
@@ -1256,6 +1309,10 @@
       const sec = parseInt(document.getElementById('bew-sec').value, 10);
       if (!(sec > 0)) return;
       o.sets[i] = { seconden: sec };
+    } else if (ex.lichaamsgewicht) {
+      const reps = parseInt(document.getElementById('bew-reps').value, 10);
+      if (!(reps > 0)) return;
+      o.sets[i] = { reps };
     } else {
       const kg = parseFloat(document.getElementById('bew-kg').value);
       const reps = parseInt(document.getElementById('bew-reps').value, 10);
@@ -1281,6 +1338,7 @@
   function voegSetToe(exerciseId) {
     const ex = laadOefeningen().find(o => o.id === exerciseId) || {};
     const isTijd = ex.type === 'tijd';
+    const isLichaam = !isTijd && !!ex.lichaamsgewicht;
     const sessiesNu = laadSessies();
     let nieuweSet, pr = false, prTekst = '';
     if (isTijd) {
@@ -1288,6 +1346,11 @@
       if (!(sec > 0)) return;
       nieuweSet = { seconden: sec };
       if (isNieuweTijdPR(sessiesNu, exerciseId, sec)) { pr = true; prTekst = formatTijd(sec); }
+    } else if (isLichaam) {
+      const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
+      if (!(reps > 0)) return;
+      nieuweSet = { reps };
+      if (isNieuweRepsPR(sessiesNu, exerciseId, reps)) { pr = true; prTekst = `${reps} herhalingen`; }
     } else {
       const kg = parseFloat(document.getElementById('kg-' + exerciseId).value);
       const reps = parseInt(document.getElementById('reps-' + exerciseId).value, 10);
@@ -1313,7 +1376,7 @@
     const lijst = laadOefeningen();
     const kaartHtml = o => `
       <div class="kaart rij">
-        <span><button class="ster" onclick="toggleFavoriet('${o.id}')" aria-label="favoriet" style="color:${o.favoriet ? '#f59e0b' : 'var(--grijs)'}">${o.favoriet ? '★' : '☆'}</button> 💪 ${escapeHtml(o.naam)} ${badgesHtml(o.spiergroepen)}${o.type === 'tijd' ? ' <span class="badge" style="color:var(--accent)">⏱️ tijd</span>' : ''}</span>
+        <span><button class="ster" onclick="toggleFavoriet('${o.id}')" aria-label="favoriet" style="color:${o.favoriet ? '#f59e0b' : 'var(--grijs)'}">${o.favoriet ? '★' : '☆'}</button> 💪 ${escapeHtml(o.naam)} ${badgesHtml(o.spiergroepen)}${o.type === 'tijd' ? ' <span class="badge" style="color:var(--accent)">⏱️ tijd</span>' : ''}${o.lichaamsgewicht ? ' <span class="badge" style="color:var(--accent)">lichaamsgewicht</span>' : ''}</span>
         <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
       </div>`;
     // Groepeer op eerste spiergroep; favorieten bovenaan, daarna alfabetisch.
@@ -1337,7 +1400,8 @@
         <div style="display:flex;flex-wrap:wrap;gap:6px">${groepChips}</div>
         <label class="veld" style="margin-top:10px">Meten in
           <select id="nieuwe-type">
-            <option value="reps">herhalingen (kg × reps)</option>
+            <option value="reps">gewicht × herhalingen (kg)</option>
+            <option value="lichaam">lichaamsgewicht (herhalingen)</option>
             <option value="tijd">seconden (bijv. plank)</option>
           </select>
         </label>
@@ -1361,9 +1425,10 @@
     if (!naam) return;
     const groepen = [...document.querySelectorAll('#tab-oefeningen .chip.aan')].map(el => el.dataset.groep);
     if (groepen.length === 0) { alert('Kies minstens één spiergroep.'); return; }
-    const type = document.getElementById('nieuwe-type').value;
+    const keuze = document.getElementById('nieuwe-type').value;
+    const type = keuze === 'tijd' ? 'tijd' : 'reps';
     const lijst = laadOefeningen();
-    lijst.push({ id: nieuwId(), naam: netteNaam(naam), spiergroepen: groepen, type });
+    lijst.push({ id: nieuwId(), naam: netteNaam(naam), spiergroepen: groepen, type, lichaamsgewicht: keuze === 'lichaam' });
     bewaarOefeningen(lijst);
     renderOefeningen();
   }
@@ -1441,6 +1506,21 @@
     return `<svg viewBox="0 0 ${g.W} ${g.H}" width="100%" style="background:#fff;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g.raster}${g.assen}${doelLijn}${lijn}${dots}${g.xlabels}${g.titels}</svg>`;
   }
 
+  // Enkele lijn (meeste herhalingen) voor lichaamsgewicht-oefeningen.
+  function tekenGrafiekLichaam(punten, doel) {
+    if (punten.length === 0) return '';
+    const g = grafiekBasis(punten, doel, p => p.reps, v => Math.round(v), 'herhalingen');
+    const { x, y } = g;
+    const doelLijn = doel > 0 ? `<line x1="${g.L}" y1="${y(doel)}" x2="${g.W - g.R}" y2="${y(doel)}" stroke="#059669" stroke-width="1.5" stroke-dasharray="4 3"/><text x="${g.W - g.R}" y="${y(doel) - 3}" fill="#059669" font-size="9" text-anchor="end">doel ${Math.round(doel)}</text>` : '';
+    const lijn = `<polyline points="${punten.map((p,i) => `${x(i)},${y(p.reps)}`).join(' ')}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round"/>`;
+    const laatstePR = punten.reduce((a, p, i) => p.isPR ? i : a, -1);
+    const dots = punten.map((p,i) => i === laatstePR
+      ? `<text x="${x(i)}" y="${y(p.reps)}" font-size="14" text-anchor="middle" dominant-baseline="central">🏅</text>`
+      : p.isPR ? `<circle cx="${x(i)}" cy="${y(p.reps)}" r="4" fill="#f59e0b"/>`
+      : `<circle cx="${x(i)}" cy="${y(p.reps)}" r="3" fill="#7c3aed"/>`).join('');
+    return `<svg viewBox="0 0 ${g.W} ${g.H}" width="100%" style="background:#fff;border-radius:10px" xmlns="http://www.w3.org/2000/svg">${g.raster}${g.assen}${doelLijn}${lijn}${dots}${g.xlabels}${g.titels}</svg>`;
+  }
+
   // Record-waarde + groei sinds de eerste sessie en over de laatste 4 weken.
   function groeiBlok(punten, waardeVan) {
     const waarden = punten.map(waardeVan);
@@ -1467,10 +1547,12 @@
     if (geselecteerdeOefeningId === null && oef.length > 0) geselecteerdeOefeningId = oef[0].id;
     const huidigeOef = oef.find(o => o.id === geselecteerdeOefeningId) || null;
     const isTijd = !!huidigeOef && huidigeOef.type === 'tijd';
+    const isLichaam = !!huidigeOef && !isTijd && !!huidigeOef.lichaamsgewicht;
     const doel = huidigeOef && huidigeOef.doel ? huidigeOef.doel : 0;
     const opties = oef.map(o => `<option value="${o.id}" ${o.id === geselecteerdeOefeningId ? 'selected' : ''}>${escapeHtml(o.naam)}${o.spiergroepen && o.spiergroepen.length ? ' — ' + escapeHtml(o.spiergroepen.join(', ')) : ''}</option>`).join('');
     const punten = !geselecteerdeOefeningId ? []
       : (isTijd ? progressieTijdVoorOefening(laadSessies(), geselecteerdeOefeningId)
+                : isLichaam ? progressieLichaamVoorOefening(laadSessies(), geselecteerdeOefeningId)
                 : progressieVoorOefening(laadSessies(), geselecteerdeOefeningId));
 
     let inhoud;
@@ -1506,6 +1588,36 @@
           <table class="progtabel">
             <thead><tr><th>tijd</th><th>datum</th></tr></thead>
             <tbody>${punten.slice().reverse().map(p => `<tr><td>${formatTijd(p.seconden)}${p.isPR ? ' 🏅' : ''}</td><td class="grijs">${datumKort(p.datum)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+    } else if (isLichaam) {
+      const prs = punten.filter(p => p.isPR).length;
+      const brep = groeiBlok(punten, p => p.reps);
+      const doelPct = doel > 0 ? `<div class="grijs" style="margin:10px 0 0">🎯 doel: ${Math.round(brep.huidig)} / ${Math.round(doel)} herhalingen · ${Math.round(brep.huidig / doel * 100)}%</div>` : '';
+      inhoud = `
+        <div style="margin-top:12px">
+          <div style="background:var(--card);border-radius:10px;padding:10px">
+            <div class="grijs" style="font-size:11px">Meeste herhalingen 🏅 · <span style="color:var(--accent)">lichaamsgewicht</span></div>
+            <div style="font-size:23px;font-weight:800">${Math.round(brep.huidig)}<span class="grijs" style="font-size:12px"> reps</span></div>
+            ${pctRegel('sinds start', brep.pctStart)}
+            ${pctRegel('laatste 4 weken', brep.pct4wk)}
+          </div>
+          ${doelPct}
+          <div style="margin-top:12px"></div>
+          ${tekenGrafiekLichaam(punten, doel)}
+          <div style="display:flex;gap:14px;margin-top:6px;font-size:11px;flex-wrap:wrap">
+            <span style="color:#7c3aed">▬ herhalingen</span>
+            <span style="color:#f59e0b">● PR</span>
+            <span>🏅 huidig record</span>
+            ${doel > 0 ? '<span style="color:#059669">╌ doel</span>' : ''}
+          </div>
+          <div class="rij" style="gap:8px;margin-top:14px">
+            <div class="stat"><b>${punten.length}</b><br><span>sessies</span></div>
+            <div class="stat"><b>${prs}</b><br><span>PR's 🏅</span></div>
+          </div>
+          <table class="progtabel">
+            <thead><tr><th>herhalingen</th><th>datum</th></tr></thead>
+            <tbody>${punten.slice().reverse().map(p => `<tr><td>${p.reps}${p.isPR ? ' 🏅' : ''}</td><td class="grijs">${datumKort(p.datum)}</td></tr>`).join('')}</tbody>
           </table>
         </div>`;
     } else {
@@ -1554,9 +1666,9 @@
 
     const doelBlok = huidigeOef ? `
       <div style="margin-top:16px">
-        <label class="veld">🎯 Doel (${isTijd ? 'in seconden' : 'zwaarste gewicht in kg'})
+        <label class="veld">🎯 Doel (${isTijd ? 'in seconden' : isLichaam ? 'in herhalingen' : 'zwaarste gewicht in kg'})
           <div class="rij" style="gap:8px">
-            <input id="doel-input" type="number" inputmode="${isTijd ? 'numeric' : 'decimal'}" step="${isTijd ? '1' : '0.5'}" value="${doel || ''}" placeholder="${isTijd ? 'bijv. 90' : 'bijv. 110'}" style="flex:1">
+            <input id="doel-input" type="number" inputmode="${isTijd || isLichaam ? 'numeric' : 'decimal'}" step="${isTijd || isLichaam ? '1' : '0.5'}" value="${doel || ''}" placeholder="${isTijd ? 'bijv. 90' : isLichaam ? 'bijv. 20' : 'bijv. 110'}" style="flex:1">
             <button class="mini" onclick="stelDoelIn('${geselecteerdeOefeningId}')">opslaan</button>
           </div>
         </label>
@@ -1591,6 +1703,15 @@
           <div class="kaart" style="cursor:pointer" onclick="naarVoortgang('${o.id}')">
             <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span><span class="grijs">›</span></div>
             <div class="rij grijs" style="margin-top:8px"><span>🏅 Beste tijd</span><span style="color:var(--goud)">${formatTijd(r.besteTijd)} · ${datumKort(r.besteTijdDatum)}</span></div>
+          </div>`;
+      }
+      if (o.lichaamsgewicht) {
+        const r = recordsLichaamVoorOefening(sessies, o.id);
+        if (!r) return '';
+        return `
+          <div class="kaart" style="cursor:pointer" onclick="naarVoortgang('${o.id}')">
+            <div class="rij"><span><b>${escapeHtml(o.naam)}</b> ${badgesHtml(o.spiergroepen)}</span><span class="grijs">›</span></div>
+            <div class="rij grijs" style="margin-top:8px"><span>🏅 Meeste herhalingen</span><span style="color:var(--goud)">${r.besteReps} reps · ${datumKort(r.besteRepsDatum)}</span></div>
           </div>`;
       }
       const r = recordsVoorOefening(sessies, o.id);
