@@ -242,6 +242,7 @@
   let geselecteerdeOefeningId = null;
   let geselecteerdeDatum = null; // welke dag toont/logt de Vandaag-tab (default: vandaag)
   let bewerktSet = null;         // { exerciseId, index } als een set inline bewerkt wordt
+  let trainingTimer = null;      // interval voor de live trainingsduur
 
   // Escape tekst die via innerHTML wordt ingevoegd (bijv. oefeningnamen met " of <)
   function escapeHtml(s) {
@@ -334,8 +335,13 @@
     cacheSessies = arr;
     const uid = huidigeGebruiker && huidigeGebruiker.id;
     if (!uid || arr.length === 0) return;
-    const rows = arr.map(s => ({ id: s.id, user_id: uid, datum: s.datum, oefeningen: s.oefeningen || [] }));
-    sb.from('sessions').upsert(rows).then(({ error }) => { if (error) meldOpslagfout(error); });
+    const rows = arr.map(s => ({ id: s.id, user_id: uid, datum: s.datum, oefeningen: s.oefeningen || [], start_tijd: s.start || null, eind_tijd: s.eind || null }));
+    sb.from('sessions').upsert(rows).then(({ error }) => {
+      if (!error) return;
+      // Vallen de start_tijd/eind_tijd-kolommen nog weg? Bewaar dan tenminste de rest.
+      const basis = arr.map(s => ({ id: s.id, user_id: uid, datum: s.datum, oefeningen: s.oefeningen || [] }));
+      sb.from('sessions').upsert(basis).then(({ error: e2 }) => { if (e2) meldOpslagfout(e2); });
+    });
   }
 
   // Alle data van de ingelogde gebruiker uit de cloud in de cache laden.
@@ -353,7 +359,7 @@
       if (r.doel !== null && r.doel !== undefined) o.doel = Number(r.doel);
       return o;
     });
-    cacheSessies = (sessRes.data || []).map(r => ({ id: r.id, datum: r.datum, oefeningen: r.oefeningen || [] }));
+    cacheSessies = (sessRes.data || []).map(r => ({ id: r.id, datum: r.datum, oefeningen: r.oefeningen || [], start: r.start_tijd || undefined, eind: r.eind_tijd || undefined }));
 
     // Sjablonen (tabel bestaat mogelijk nog niet -> stil terugvallen op leeg).
     const tmplRes = await sb.from('templates').select('*').eq('user_id', uid);
@@ -591,6 +597,23 @@
         <button class="ghost" style="width:100%;margin-top:6px" onclick="bewaarTemplate()">💾 Deze sessie opslaan als sjabloon</button>
       </div>`;
 
+    let trainingHtml;
+    if (!sessie || !sessie.start) {
+      trainingHtml = `<button class="ghost" style="width:100%;margin-top:10px;color:var(--groen);border-color:var(--groen)" onclick="startTraining()">▶ Start training</button>`;
+    } else if (!sessie.eind) {
+      trainingHtml = `<div class="kaart" style="margin-top:10px;border:1px solid var(--groen)">
+        <div class="rij"><span>⏱️ Training loopt — <b id="training-elapsed">${formatDuur(Date.now() - new Date(sessie.start).getTime())}</b></span>
+        <button class="mini" onclick="eindigTraining()">⏹ Eindig</button></div></div>`;
+    } else {
+      const tot = sessieTotalen(sessie);
+      trainingHtml = `<div class="kaart" style="margin-top:10px;border:1px solid var(--paars)">
+        <div style="font-weight:600;margin-bottom:8px">✅ Training afgerond</div>
+        <div class="rij grijs" style="padding:2px 0"><span>⏱️ Duur</span><span>${formatDuur(new Date(sessie.eind).getTime() - new Date(sessie.start).getTime())}</span></div>
+        <div class="rij grijs" style="padding:2px 0"><span>🏋️ Totaal gewicht</span><span>${formatKg(tot.volume)} kg</span></div>
+        <div class="rij grijs" style="padding:2px 0"><span>🔁 Totaal herhalingen</span><span>${tot.reps}</span></div>
+        <button class="mini" style="margin-top:8px" onclick="startTraining()">opnieuw starten</button></div>`;
+    }
+
     const datumLabel = new Date(geselecteerdeDatum + 'T00:00:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
     document.getElementById('tab-vandaag').innerHTML = `
       <div class="rij" style="gap:8px;align-items:center">
@@ -599,10 +622,12 @@
         <button class="mini" onclick="wijzigDatum(1)" aria-label="dag vooruit"${isVandaag ? ' disabled style="opacity:.35"' : ''}>›</button>
       </div>
       <p class="sub" style="margin-top:6px">${datumLabel}${isVandaag ? ' · vandaag' : ''}</p>
+      ${trainingHtml}
       <div style="margin-top:14px">${kaarten || `<p class="grijs">Nog niets gelogd${isVandaag ? ' vandaag' : ' op deze dag'}. Voeg een oefening toe 👇</p>`}</div>
       ${picker}
       ${templateHtml}
     `;
+    beheerTrainingTimer();
   }
 
   function voegOefeningToe() {
@@ -627,6 +652,51 @@
     s.oefeningen = s.oefeningen.filter(x => x.exerciseId !== exerciseId);
     bewaarSessies(sessies);
     renderVandaag();
+  }
+
+  // ---- Training starten/eindigen + samenvatting ----
+  function formatDuur(ms) {
+    const sec = Math.max(0, Math.floor(ms / 1000));
+    const u = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return u > 0 ? `${u}u ${String(m).padStart(2, '0')}m` : `${m}:${String(s).padStart(2, '0')}`;
+  }
+  function sessieTotalen(sessie) {
+    let volume = 0, reps = 0;
+    for (const o of (sessie.oefeningen || [])) {
+      for (const st of o.sets) {
+        if (st.kg !== undefined && st.reps !== undefined) { volume += st.kg * st.reps; reps += st.reps; }
+      }
+    }
+    return { volume, reps };
+  }
+  function startTraining() {
+    const sessie = zorgVoorSessieOpDatum(geselecteerdeDatum);
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.id === sessie.id);
+    s.start = new Date().toISOString();
+    delete s.eind;
+    bewaarSessies(sessies);
+    renderVandaag();
+  }
+  function eindigTraining() {
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.datum === geselecteerdeDatum);
+    if (!s || !s.start) return;
+    s.eind = new Date().toISOString();
+    bewaarSessies(sessies);
+    renderVandaag();
+  }
+  function beheerTrainingTimer() {
+    const s = sessieOpDatum(geselecteerdeDatum);
+    const loopt = s && s.start && !s.eind;
+    if (loopt && !trainingTimer) trainingTimer = setInterval(tikTraining, 1000);
+    if (!loopt && trainingTimer) { clearInterval(trainingTimer); trainingTimer = null; }
+  }
+  function tikTraining() {
+    const s = sessieOpDatum(geselecteerdeDatum);
+    const el = document.getElementById('training-elapsed');
+    if (!s || !s.start || s.eind || !el) { if (trainingTimer) { clearInterval(trainingTimer); trainingTimer = null; } return; }
+    el.textContent = formatDuur(Date.now() - new Date(s.start).getTime());
   }
 
   // ---- Sessie-sjablonen (routines) ----

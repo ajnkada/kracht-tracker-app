@@ -28,8 +28,12 @@ create table if not exists public.sessions (
   user_id    uuid not null references auth.users(id) on delete cascade,
   datum      date not null,
   oefeningen jsonb not null default '[]',
+  start_tijd timestamptz,
+  eind_tijd  timestamptz,
   created_at timestamptz not null default now()
 );
+alter table public.sessions add column if not exists start_tijd timestamptz;
+alter table public.sessions add column if not exists eind_tijd  timestamptz;
 
 create table if not exists public.templates (
   id           uuid primary key default gen_random_uuid(),
