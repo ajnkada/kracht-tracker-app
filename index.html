@@ -1054,8 +1054,8 @@
     if (laatste) {
       const t = sessieTotalen(laatste);
       const duur = (laatste.start && laatste.eind) ? formatDuur(new Date(laatste.eind).getTime() - new Date(laatste.start).getTime()) : null;
-      laatsteHtml = `<div class="kaart">
-        <div class="rij"><b>Laatste training</b><span class="grijs">${datumKort(laatste.datum)}</span></div>
+      laatsteHtml = `<div class="kaart" style="cursor:pointer" onclick="naarTraining('${laatste.datum}')">
+        <div class="rij"><b>Laatste training</b><span class="grijs">${datumKort(laatste.datum)} ›</span></div>
         <div class="rij grijs" style="margin-top:6px;padding:2px 0"><span>oefeningen</span><span>${laatste.oefeningen.length}</span></div>
         <div class="rij grijs" style="padding:2px 0"><span>totaal gewicht</span><span>${formatKg(t.volume)} kg</span></div>
         <div class="rij grijs" style="padding:2px 0"><span>herhalingen</span><span>${t.reps}</span></div>
@@ -1144,11 +1144,11 @@
           <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:var(--paars);height:100%;width:${Math.round(v / maxG * 100)}%"></div></div>
         </div>`).join('')}</div>` : ''}
 
-      ${laatsteHtml ? `<div style="margin-top:22px">${laatsteHtml}</div>` : ''}
       <div class="kaart" style="border-left:3px solid var(--paars);font-style:italic;color:var(--tekst);margin-top:22px">
         <div style="font-size:10px;color:var(--grijs);font-style:normal;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Quote van de dag</div>
         “${escapeHtml(quoteVanDeDag())}”
       </div>
+      ${laatsteHtml ? `<div style="margin-top:22px">${laatsteHtml}</div>` : ''}
     `;
     // standaard op het middelste paneel ("Deze week")
     const car = document.getElementById('stats-carousel');
@@ -1823,6 +1823,10 @@
     `;
   }
 
+  function naarTraining(datum) {
+    geselecteerdeDatum = datum;
+    toonTab('vandaag');
+  }
   function naarVoortgang(id) {
     geselecteerdeOefeningId = id;
     toonTab('voortgang');
