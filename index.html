@@ -971,15 +971,25 @@
       </div>`;
     }
 
-    const groet = huidigeGebruiker && huidigeGebruiker.email ? huidigeGebruiker.email.split('@')[0] : '';
+    const naamGezet = huidigeNaam && (!huidigeGebruiker || huidigeNaam !== huidigeGebruiker.email);
+    const toonNaamInput = !naamGezet || naamBewerken;
+    const kopHtml = toonNaamInput
+      ? `<div class="kaart" style="margin-bottom:14px">
+           <div style="font-weight:600;margin-bottom:8px">👋 Hoe mogen we je noemen?</div>
+           <div class="rij" style="gap:8px">
+             <input id="naam-input" placeholder="Je naam" value="${naamGezet ? escapeHtml(huidigeNaam) : ''}" style="flex:1">
+             <button class="mini" onclick="bewaarNaam()">opslaan</button>
+           </div>
+         </div>`
+      : `<div class="rij"><h1>Hoi ${escapeHtml(huidigeNaam)} 👋</h1><button class="sluit" style="font-size:14px" onclick="wijzigNaam()" aria-label="naam wijzigen">✎</button></div>
+         <p class="sub">Klaar voor je training?</p>`;
 
     document.getElementById('tab-home').innerHTML = `
       <div class="kaart" style="border-left:3px solid var(--paars);font-style:italic;color:var(--tekst);margin-bottom:16px">
         <div style="font-size:10px;color:var(--grijs);font-style:normal;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Quote van de dag</div>
         “${escapeHtml(quoteVanDeDag())}”
       </div>
-      <h1>Hoi${groet ? ' ' + escapeHtml(groet) : ''} 👋</h1>
-      <p class="sub">Klaar voor je training?</p>
+      ${kopHtml}
       <button class="ghost" style="width:100%;margin-top:10px;color:var(--groen);border-color:var(--groen)" onclick="startTraining();toonTab('vandaag')">▶ Start training</button>
 
       <h2 style="font-size:16px;margin-top:22px">Deze week</h2>
@@ -1695,13 +1705,31 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   let huidigeGebruiker = null;
   let huidigeRol = 'gebruiker';
+  let huidigeNaam = '';
+  let naamBewerken = false;
   let appGestart = false;
 
   async function laadRol() {
     try {
-      const { data } = await sb.from('profiles').select('rol').eq('id', huidigeGebruiker.id).single();
+      const { data } = await sb.from('profiles').select('rol,naam').eq('id', huidigeGebruiker.id).single();
       huidigeRol = (data && data.rol) || 'gebruiker';
-    } catch (e) { huidigeRol = 'gebruiker'; }
+      huidigeNaam = (data && data.naam) || '';
+    } catch (e) { huidigeRol = 'gebruiker'; huidigeNaam = ''; }
+  }
+  async function bewaarNaam() {
+    const v = (document.getElementById('naam-input').value || '').trim();
+    if (!v) return;
+    huidigeNaam = v;
+    naamBewerken = false;
+    renderHome();
+    const { error } = await sb.from('profiles').update({ naam: v }).eq('id', huidigeGebruiker.id);
+    if (error) meldOpslagfout(error);
+  }
+  function wijzigNaam() {
+    naamBewerken = true;
+    renderHome();
+    const el = document.getElementById('naam-input');
+    if (el) el.focus();
   }
 
   async function stuurInloglink() {
