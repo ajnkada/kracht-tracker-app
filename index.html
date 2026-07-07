@@ -996,7 +996,7 @@
       <div class="rij" style="gap:8px;margin-top:8px">
         <div class="stat"><b>${sessDeze.length}</b><br><span>trainingen</span></div>
         <div class="stat"><b>${formatKg(volDeze)}</b><br><span>kg volume</span></div>
-        <div class="stat"><b>${prsDeze}</b><br><span>PR's 🏅</span></div>
+        <div class="stat" style="cursor:pointer" onclick="toonTab('records')"><b>${prsDeze}</b><br><span>PR's 🏅 ›</span></div>
       </div>
       <div class="grijs" style="margin-top:8px;font-size:13px">
         ${volDelta === null ? '' : `<span style="color:${volDelta >= 0 ? 'var(--groen)' : '#f87171'}">${volDelta >= 0 ? '▲ +' : '▼ '}${volDelta}%</span> t.o.v. vorige week · `}🔥 ${streak} ${streak === 1 ? 'week' : 'weken'} op rij
