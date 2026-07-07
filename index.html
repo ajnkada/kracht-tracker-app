@@ -76,6 +76,7 @@
     <section id="tab-vandaag" class="scherm verborgen"></section>
     <section id="tab-oefeningen" class="scherm verborgen"></section>
     <section id="tab-voortgang" class="scherm verborgen"></section>
+    <section id="tab-doelen" class="scherm verborgen"></section>
     <section id="tab-records" class="scherm verborgen"></section>
     <section id="tab-account" class="scherm verborgen"></section>
   </main>
@@ -507,6 +508,7 @@
       b.classList.toggle('actief', b.dataset.tab === naam);
     }
     if (naam === 'home') renderHome();
+    if (naam === 'doelen') renderDoelen();
     if (naam === 'vandaag') renderVandaag();
     if (naam === 'oefeningen') renderOefeningen();
     if (naam === 'voortgang') renderVoortgang();
@@ -962,6 +964,43 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
+  // Doelen (oefeningen met een target) + voortgang, gesorteerd op % (dichtstbij eerst).
+  function berekenDoelen() {
+    const sessies = laadSessies();
+    const doelen = [];
+    for (const e of laadOefeningen()) {
+      if (!(e.doel > 0)) continue;
+      const isTijd = e.type === 'tijd';
+      const isLich = !isTijd && !!e.lichaamsgewicht;
+      const pts = isTijd ? progressieTijdVoorOefening(sessies, e.id)
+        : isLich ? progressieLichaamVoorOefening(sessies, e.id)
+        : progressieVoorOefening(sessies, e.id);
+      if (!pts.length) continue;
+      const huidig = isTijd ? Math.max(...pts.map(p => p.seconden))
+        : isLich ? Math.max(...pts.map(p => p.reps))
+        : Math.max(...pts.map(p => p.gewicht));
+      const fmt = isTijd ? formatTijd : isLich ? (v => v + ' reps') : (v => formatKg(v) + ' kg');
+      doelen.push({ naam: e.naam, id: e.id, pct: Math.min(100, Math.round(huidig / e.doel * 100)), huidigTekst: fmt(huidig), doelTekst: fmt(e.doel) });
+    }
+    doelen.sort((a, b) => b.pct - a.pct);
+    return doelen;
+  }
+
+  function renderDoelen() {
+    const doelen = berekenDoelen();
+    const rijen = doelen.map(d => `
+      <div style="margin-bottom:12px;cursor:pointer" onclick="naarVoortgang('${d.id}')">
+        <div class="rij grijs" style="font-size:13px"><span>${escapeHtml(d.naam)} ›</span><span>${d.huidigTekst} / ${d.doelTekst} · ${d.pct}%</span></div>
+        <div style="background:#0b1220;border-radius:6px;height:9px;overflow:hidden;margin-top:4px"><div style="background:${d.pct >= 100 ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${d.pct}%"></div></div>
+      </div>`).join('');
+    document.getElementById('tab-doelen').innerHTML = `
+      <button class="mini" onclick="toonTab('home')" style="margin-bottom:10px">‹ Home</button>
+      <h1>Doelen 🎯</h1>
+      <p class="sub">Al je doelen, gesorteerd op hoe dicht je bij je target bent.</p>
+      <div style="margin-top:14px">${rijen || '<p class="grijs">Nog geen doelen. Ga naar Voortgang → kies een oefening → stel een doel in.</p>'}</div>
+    `;
+  }
+
   function renderHome() {
     const sessies = laadSessies();
     const oef = laadOefeningen();
@@ -1033,23 +1072,7 @@
     // Wekelijks trainingsdoel
     const weekdoel = Math.max(1, parseInt(localStorage.getItem('kt_weekdoel') || '3', 10));
 
-    // Doelen-voortgang
-    const doelen = [];
-    for (const e of oef) {
-      if (!(e.doel > 0)) continue;
-      const isTijd = e.type === 'tijd';
-      const isLich = !isTijd && !!e.lichaamsgewicht;
-      const pts = isTijd ? progressieTijdVoorOefening(sessies, e.id)
-        : isLich ? progressieLichaamVoorOefening(sessies, e.id)
-        : progressieVoorOefening(sessies, e.id);
-      if (!pts.length) continue;
-      const huidig = isTijd ? Math.max(...pts.map(p => p.seconden))
-        : isLich ? Math.max(...pts.map(p => p.reps))
-        : Math.max(...pts.map(p => p.gewicht));
-      const fmt = isTijd ? formatTijd : isLich ? (v => v + ' reps') : (v => formatKg(v) + ' kg');
-      doelen.push({ naam: e.naam, id: e.id, pct: Math.min(100, Math.round(huidig / e.doel * 100)), huidigTekst: fmt(huidig), doelTekst: fmt(e.doel) });
-    }
-    doelen.sort((a, b) => b.pct - a.pct);
+    const doelen = berekenDoelen();
 
     const uur = new Date().getHours();
     const groetWoord = uur < 6 ? 'Goedenacht' : uur < 12 ? 'Goedemorgen' : uur < 18 ? 'Goedemiddag' : 'Goedenavond';
@@ -1113,8 +1136,8 @@
       </div>
 
       ${doelen.length ? `
-      <h2 style="font-size:16px;margin-top:22px">Doelen 🎯</h2>
-      <div style="margin-top:8px">${doelen.map(d => `
+      <h2 style="font-size:16px;margin-top:22px;cursor:pointer" onclick="toonTab('doelen')">Doelen 🎯 <span class="grijs" style="font-size:12px">${doelen.length > 3 ? 'alle ' + doelen.length + ' ›' : 'alle ›'}</span></h2>
+      <div style="margin-top:8px">${doelen.slice(0, 3).map(d => `
         <div style="margin-bottom:10px;cursor:pointer" onclick="naarVoortgang('${d.id}')">
           <div class="rij grijs" style="font-size:12px"><span>${escapeHtml(d.naam)} ›</span><span>${d.huidigTekst} / ${d.doelTekst} · ${d.pct}%</span></div>
           <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:${d.pct >= 100 ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${d.pct}%"></div></div>
