@@ -29,6 +29,9 @@
     .stat { flex:1; background:var(--card); border-radius:10px; padding:10px; text-align:center; }
     .stat b { font-size:18px; }
     .stat span { font-size:10px; color:var(--grijs); }
+    .carousel { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+    .carousel::-webkit-scrollbar { display:none; }
+    .carousel > .paneel { flex:0 0 100%; scroll-snap-align:center; }
     nav { position: fixed; bottom:0; left:0; right:0; background:#0b1220; border-top:1px solid var(--line); display:flex; }
     nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:12px 4px; font-size:12px; line-height:1.3; }
     nav button.actief { color: var(--accent); }
@@ -983,6 +986,12 @@
     prEvents.sort((a, b) => a.datum < b.datum ? 1 : -1);
     const prsDeze = prEvents.filter(e => inWeek(e.datum, dezeMaandag)).length;
 
+    // Deze maand (kalendermaand)
+    const inMaand = datum => datum.slice(0, 7) === vandaagISO().slice(0, 7);
+    const sessMaand = sessies.filter(s => s.oefeningen.length && inMaand(s.datum));
+    const volMaand = sessMaand.reduce((a, s) => a + sessieTotalen(s).volume, 0);
+    const prsMaand = prEvents.filter(e => inMaand(e.datum)).length;
+
     // Streak: aaneengesloten weken met minstens één training
     const weken = new Set(sessies.filter(s => s.oefeningen.length).map(s => maandagVan(s.datum)));
     let streak = 0;
@@ -1070,25 +1079,37 @@
       ${kopHtml}
       <button class="ghost" style="width:100%;margin-top:10px;color:var(--groen);border-color:var(--groen)" onclick="startTraining();toonTab('vandaag')">▶ Start training</button>
 
-      <h2 style="font-size:16px;margin-top:22px">Deze week</h2>
-      <div class="rij" style="gap:8px;margin-top:8px">
-        <div class="stat"><b>${sessDeze.length}</b><br><span>trainingen</span></div>
-        <div class="stat"><b>${formatKg(volDeze)}</b><br><span>kg volume</span></div>
-        <div class="stat" style="cursor:pointer" onclick="toonTab('records')"><b>${prsDeze}</b><br><span>PR's 🏅 ›</span></div>
+      <div id="stats-carousel" class="carousel" style="margin-top:22px">
+        <div class="paneel">
+          <h2 style="font-size:16px">Sinds je begon</h2>
+          <div class="rij" style="gap:8px;margin-top:8px">
+            <div class="stat"><b>${totaalTrainingen}</b><br><span>trainingen</span></div>
+            <div class="stat"><b>${Math.round(totaalVolume).toLocaleString('nl-NL')}</b><br><span>kg getild</span></div>
+            <div class="stat" style="cursor:pointer" onclick="toonTab('records')"><b>${totaalPRs}</b><br><span>PR's 🏅 ›</span></div>
+          </div>
+        </div>
+        <div class="paneel">
+          <h2 style="font-size:16px">Deze week</h2>
+          <div class="rij" style="gap:8px;margin-top:8px">
+            <div class="stat"><b>${sessDeze.length}</b><br><span>trainingen</span></div>
+            <div class="stat"><b>${Math.round(volDeze).toLocaleString('nl-NL')}</b><br><span>kg volume</span></div>
+            <div class="stat" style="cursor:pointer" onclick="toonTab('records')"><b>${prsDeze}</b><br><span>PR's 🏅 ›</span></div>
+          </div>
+        </div>
+        <div class="paneel">
+          <h2 style="font-size:16px">Deze maand</h2>
+          <div class="rij" style="gap:8px;margin-top:8px">
+            <div class="stat"><b>${sessMaand.length}</b><br><span>trainingen</span></div>
+            <div class="stat"><b>${Math.round(volMaand).toLocaleString('nl-NL')}</b><br><span>kg volume</span></div>
+            <div class="stat" style="cursor:pointer" onclick="toonTab('records')"><b>${prsMaand}</b><br><span>PR's 🏅 ›</span></div>
+          </div>
+        </div>
       </div>
-      <div class="grijs" style="margin-top:8px;font-size:13px">
-        ${volDelta === null ? '' : `<span style="color:${volDelta >= 0 ? 'var(--groen)' : '#f87171'}">${volDelta >= 0 ? '▲ +' : '▼ '}${volDelta}%</span> t.o.v. vorige week · `}🔥 ${streak} ${streak === 1 ? 'week' : 'weken'} op rij
-      </div>
+      <div class="grijs" style="text-align:center;font-size:11px;margin-top:6px">‹ swipe: totaal · week · maand ›</div>
+      <div class="grijs" style="margin-top:10px;font-size:13px">🔥 ${streak} ${streak === 1 ? 'week' : 'weken'} op rij</div>
       <div style="margin-top:12px">
         <div class="rij grijs" style="font-size:12px"><span>Weekdoel <button class="sluit" style="font-size:12px;padding:0 3px" onclick="stelWeekdoelIn()" aria-label="weekdoel wijzigen">✎</button></span><span>${Math.min(sessDeze.length, weekdoel)}/${weekdoel} trainingen</span></div>
         <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:${sessDeze.length >= weekdoel ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${Math.min(100, Math.round(sessDeze.length / weekdoel * 100))}%"></div></div>
-      </div>
-
-      <h2 style="font-size:16px;margin-top:22px">Sinds je begon</h2>
-      <div class="rij" style="gap:8px;margin-top:8px">
-        <div class="stat"><b>${totaalTrainingen}</b><br><span>trainingen</span></div>
-        <div class="stat"><b>${Math.round(totaalVolume).toLocaleString('nl-NL')}</b><br><span>kg getild</span></div>
-        <div class="stat"><b>${totaalPRs}</b><br><span>PR's 🏅</span></div>
       </div>
 
       ${doelen.length ? `
@@ -1113,6 +1134,9 @@
 
       ${laatsteHtml ? `<div style="margin-top:22px">${laatsteHtml}</div>` : ''}
     `;
+    // standaard op het middelste paneel ("Deze week")
+    const car = document.getElementById('stats-carousel');
+    if (car) car.scrollLeft = car.clientWidth;
   }
 
   function stelWeekdoelIn() {
