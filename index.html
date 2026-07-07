@@ -956,8 +956,6 @@
     const groepen = Object.entries(perGroep).sort((a, b) => b[1] - a[1]);
     const maxG = groepen.length ? groepen[0][1] : 1;
 
-    const sjablonen = cacheTemplates.map(t => `<button class="mini" style="margin:0 6px 6px 0" onclick="laadTemplateInSessie('${t.id}');toonTab('vandaag')">▶ ${escapeHtml(t.naam)}</button>`).join('');
-
     const gesorteerd = sessies.filter(s => s.oefeningen.length).slice().sort((a, b) => a.datum < b.datum ? 1 : -1);
     const laatste = gesorteerd[0];
     let laatsteHtml = '';
@@ -983,7 +981,6 @@
       <h1>Hoi${groet ? ' ' + escapeHtml(groet) : ''} 👋</h1>
       <p class="sub">Klaar voor je training?</p>
       <button class="ghost" style="width:100%;margin-top:10px;color:var(--groen);border-color:var(--groen)" onclick="startTraining();toonTab('vandaag')">▶ Start training</button>
-      ${sjablonen ? `<div style="margin-top:12px"><div style="font-size:11px;color:var(--grijs);margin-bottom:6px">Snelstart met een sjabloon</div>${sjablonen}</div>` : ''}
 
       <h2 style="font-size:16px;margin-top:22px">Deze week</h2>
       <div class="rij" style="gap:8px;margin-top:8px">
