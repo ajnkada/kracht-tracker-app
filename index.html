@@ -534,6 +534,38 @@
     return new Date(iso + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
   }
 
+  // Motiverende quotes — elke dag rotatie (over doelen halen, met of zonder sporten).
+  const QUOTES = [
+    'Kleine stapjes elke dag leiden tot grote resultaten.',
+    'Discipline is kiezen tussen wat je nu wil en wat je het meest wil.',
+    'Je concurreert alleen met wie je gisteren was.',
+    'Vooruitgang, geen perfectie.',
+    'Succes is de som van kleine inspanningen, dag in dag uit.',
+    'Motivatie brengt je op gang, gewoonte houdt je gaande.',
+    'Wat je vandaag doet, bepaalt hoe je morgen staat.',
+    'De enige slechte training is die je niet gedaan hebt.',
+    'Groei begint aan het einde van je comfortzone.',
+    'Doelen zonder actie blijven dromen.',
+    'Wees geduldig met je resultaten, maar niet met je inzet.',
+    'Consistentie verslaat intensiteit.',
+    'Val zeven keer, sta acht keer op.',
+    'Je hoeft niet perfect te zijn, alleen beter dan gisteren.',
+    'Sterker worden is een keuze die je elke dag opnieuw maakt.',
+    'Focus op de volgende stap, niet op de hele berg.',
+    'Rust is deel van de groei, niet het tegenovergestelde.',
+    'Wat makkelijk is, verandert je niet.',
+    'Blijf opdagen — vooral op de dagen dat je geen zin hebt.',
+    'Jouw grootste tegenstander is de versie van jou die opgeeft.',
+    'Elke herhaling telt. Elke dag telt.',
+    'Richting is belangrijker dan snelheid.',
+    'Wie blijft doorgaan, haalt in wat sneller lijkt.',
+    'Investeer vandaag in de jij van volgend jaar.',
+  ];
+  function quoteVanDeDag() {
+    const dagNr = Math.floor(new Date(vandaagISO() + 'T00:00:00Z').getTime() / 86400000);
+    return QUOTES[((dagNr % QUOTES.length) + QUOTES.length) % QUOTES.length];
+  }
+
   // Maandag (ISO) van de week waarin `iso` valt — lokaal, geen tijdzone-verschuiving.
   function maandagVan(iso) {
     const d = new Date(iso + 'T00:00:00');
@@ -603,6 +635,10 @@
     const groet = huidigeGebruiker && huidigeGebruiker.email ? huidigeGebruiker.email.split('@')[0] : '';
 
     document.getElementById('tab-home').innerHTML = `
+      <div class="kaart" style="border-left:3px solid var(--paars);font-style:italic;color:var(--tekst);margin-bottom:16px">
+        <div style="font-size:10px;color:var(--grijs);font-style:normal;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Quote van de dag</div>
+        “${escapeHtml(quoteVanDeDag())}”
+      </div>
       <h1>Hoi${groet ? ' ' + escapeHtml(groet) : ''} 👋</h1>
       <p class="sub">Klaar voor je training?</p>
       <button class="ghost" style="width:100%;margin-top:10px;color:var(--groen);border-color:var(--groen)" onclick="startTraining();toonTab('vandaag')">▶ Start training</button>
