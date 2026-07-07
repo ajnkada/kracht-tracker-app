@@ -1016,6 +1016,46 @@
       </div>`;
     }
 
+    // All-time mijlpalen
+    const alleTrainingen = sessies.filter(s => s.oefeningen.length);
+    const totaalTrainingen = alleTrainingen.length;
+    const totaalVolume = alleTrainingen.reduce((a, s) => a + sessieTotalen(s).volume, 0);
+    const totaalPRs = prEvents.length;
+
+    // Trainingskalender: laatste 6 weken
+    const getraind = new Set(alleTrainingen.map(s => s.datum));
+    const startMaandag = verschuifDatum(dezeMaandag, -35);
+    const kalWeken = [];
+    for (let wk = 0; wk < 6; wk++) {
+      const dagen = [];
+      for (let d = 0; d < 7; d++) dagen.push(verschuifDatum(startMaandag, wk * 7 + d));
+      kalWeken.push(dagen);
+    }
+
+    // Wekelijks trainingsdoel
+    const weekdoel = Math.max(1, parseInt(localStorage.getItem('kt_weekdoel') || '3', 10));
+
+    // Doelen-voortgang
+    const doelen = [];
+    for (const e of oef) {
+      if (!(e.doel > 0)) continue;
+      const isTijd = e.type === 'tijd';
+      const isLich = !isTijd && !!e.lichaamsgewicht;
+      const pts = isTijd ? progressieTijdVoorOefening(sessies, e.id)
+        : isLich ? progressieLichaamVoorOefening(sessies, e.id)
+        : progressieVoorOefening(sessies, e.id);
+      if (!pts.length) continue;
+      const huidig = isTijd ? Math.max(...pts.map(p => p.seconden))
+        : isLich ? Math.max(...pts.map(p => p.reps))
+        : Math.max(...pts.map(p => p.gewicht));
+      const fmt = isTijd ? formatTijd : isLich ? (v => v + ' reps') : (v => formatKg(v) + ' kg');
+      doelen.push({ naam: e.naam, id: e.id, pct: Math.min(100, Math.round(huidig / e.doel * 100)), huidigTekst: fmt(huidig), doelTekst: fmt(e.doel) });
+    }
+    doelen.sort((a, b) => b.pct - a.pct);
+
+    const uur = new Date().getHours();
+    const groetWoord = uur < 6 ? 'Goedenacht' : uur < 12 ? 'Goedemorgen' : uur < 18 ? 'Goedemiddag' : 'Goedenavond';
+
     const naamGezet = huidigeNaam && (!huidigeGebruiker || huidigeNaam !== huidigeGebruiker.email);
     const toonNaamInput = !naamGezet || naamBewerken;
     const kopHtml = toonNaamInput
@@ -1026,7 +1066,7 @@
              <button class="mini" onclick="bewaarNaam()">opslaan</button>
            </div>
          </div>`
-      : `<div class="rij"><h1>Hoi ${escapeHtml(huidigeNaam)} 👋</h1><button class="sluit" style="font-size:14px" onclick="wijzigNaam()" aria-label="naam wijzigen">✎</button></div>
+      : `<div class="rij"><h1>${groetWoord} ${escapeHtml(huidigeNaam)} 👋</h1><button class="sluit" style="font-size:14px" onclick="wijzigNaam()" aria-label="naam wijzigen">✎</button></div>
          <p class="sub">Klaar voor je training?</p>`;
 
     document.getElementById('tab-home').innerHTML = `
@@ -1046,6 +1086,36 @@
       <div class="grijs" style="margin-top:8px;font-size:13px">
         ${volDelta === null ? '' : `<span style="color:${volDelta >= 0 ? 'var(--groen)' : '#f87171'}">${volDelta >= 0 ? '▲ +' : '▼ '}${volDelta}%</span> t.o.v. vorige week · `}🔥 ${streak} ${streak === 1 ? 'week' : 'weken'} op rij
       </div>
+      <div style="margin-top:12px">
+        <div class="rij grijs" style="font-size:12px"><span>Weekdoel <button class="sluit" style="font-size:12px;padding:0 3px" onclick="stelWeekdoelIn()" aria-label="weekdoel wijzigen">✎</button></span><span>${Math.min(sessDeze.length, weekdoel)}/${weekdoel} trainingen</span></div>
+        <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:${sessDeze.length >= weekdoel ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${Math.min(100, Math.round(sessDeze.length / weekdoel * 100))}%"></div></div>
+      </div>
+
+      <h2 style="font-size:16px;margin-top:22px">Trainingskalender</h2>
+      <div style="display:flex;flex-direction:column;gap:3px;margin-top:8px">
+        ${kalWeken.map(week => `<div style="display:flex;gap:3px">${week.map(iso => {
+          const toekomst = iso > vandaagISO();
+          const vandaag = iso === vandaagISO();
+          const bg = getraind.has(iso) ? 'var(--paars)' : '#1e293b';
+          return `<div title="${iso}" style="flex:1;aspect-ratio:1;border-radius:3px;background:${bg};opacity:${toekomst ? '.3' : '1'};${vandaag ? 'outline:2px solid var(--accent);outline-offset:-1px' : ''}"></div>`;
+        }).join('')}</div>`).join('')}
+      </div>
+      <div class="grijs" style="font-size:11px;margin-top:6px">laatste 6 weken · paars = getraind</div>
+
+      <h2 style="font-size:16px;margin-top:22px">Sinds je begon</h2>
+      <div class="rij" style="gap:8px;margin-top:8px">
+        <div class="stat"><b>${totaalTrainingen}</b><br><span>trainingen</span></div>
+        <div class="stat"><b>${Math.round(totaalVolume).toLocaleString('nl-NL')}</b><br><span>kg getild</span></div>
+        <div class="stat"><b>${totaalPRs}</b><br><span>PR's 🏅</span></div>
+      </div>
+
+      ${doelen.length ? `
+      <h2 style="font-size:16px;margin-top:22px">Doelen 🎯</h2>
+      <div style="margin-top:8px">${doelen.map(d => `
+        <div style="margin-bottom:10px;cursor:pointer" onclick="naarVoortgang('${d.id}')">
+          <div class="rij grijs" style="font-size:12px"><span>${escapeHtml(d.naam)} ›</span><span>${d.huidigTekst} / ${d.doelTekst} · ${d.pct}%</span></div>
+          <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:${d.pct >= 100 ? 'var(--groen)' : 'var(--paars)'};height:100%;width:${d.pct}%"></div></div>
+        </div>`).join('')}</div>` : ''}
 
       ${prEvents.length ? `
       <h2 style="font-size:16px;margin-top:22px">Recente records 🏅</h2>
@@ -1061,6 +1131,14 @@
 
       ${laatsteHtml ? `<div style="margin-top:22px">${laatsteHtml}</div>` : ''}
     `;
+  }
+
+  function stelWeekdoelIn() {
+    const huidig = localStorage.getItem('kt_weekdoel') || '3';
+    const v = prompt('Hoeveel trainingen per week wil je doen?', huidig);
+    if (v === null) return;
+    const n = parseInt(v, 10);
+    if (n > 0) { localStorage.setItem('kt_weekdoel', String(n)); renderHome(); }
   }
 
   function renderVandaag() {
