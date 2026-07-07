@@ -607,11 +607,11 @@
     } else {
       const tot = sessieTotalen(sessie);
       trainingHtml = `<div class="kaart" style="margin-top:10px;border:1px solid var(--paars)">
-        <div style="font-weight:600;margin-bottom:8px">✅ Training afgerond</div>
+        <div class="rij" style="margin-bottom:8px"><span style="font-weight:600">✅ Training afgerond</span><button class="sluit" onclick="verwijderTraining()" aria-label="training verwijderen">×</button></div>
         <div class="rij grijs" style="padding:2px 0"><span>⏱️ Duur</span><span>${formatDuur(new Date(sessie.eind).getTime() - new Date(sessie.start).getTime())}</span></div>
         <div class="rij grijs" style="padding:2px 0"><span>🏋️ Totaal gewicht</span><span>${formatKg(tot.volume)} kg</span></div>
         <div class="rij grijs" style="padding:2px 0"><span>🔁 Totaal herhalingen</span><span>${tot.reps}</span></div>
-        <button class="mini" style="margin-top:8px" onclick="startTraining()">opnieuw starten</button></div>`;
+      </div>`;
     }
 
     const datumLabel = new Date(geselecteerdeDatum + 'T00:00:00').toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -683,6 +683,16 @@
     const s = sessies.find(x => x.datum === geselecteerdeDatum);
     if (!s || !s.start) return;
     s.eind = new Date().toISOString();
+    bewaarSessies(sessies);
+    renderVandaag();
+  }
+  function verwijderTraining() {
+    if (!confirm('Deze training verwijderen? De start- en eindtijd worden gewist (je gelogde sets blijven staan).')) return;
+    const sessies = laadSessies();
+    const s = sessies.find(x => x.datum === geselecteerdeDatum);
+    if (!s) return;
+    delete s.start;
+    delete s.eind;
     bewaarSessies(sessies);
     renderVandaag();
   }
