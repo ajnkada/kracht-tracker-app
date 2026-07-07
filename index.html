@@ -30,7 +30,7 @@
     .stat b { font-size:18px; }
     .stat span { font-size:10px; color:var(--grijs); }
     nav { position: fixed; bottom:0; left:0; right:0; background:#0b1220; border-top:1px solid var(--line); display:flex; }
-    nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:10px 2px; font-size:10px; line-height:1.3; }
+    nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:12px 4px; font-size:12px; line-height:1.3; }
     nav button.actief { color: var(--accent); }
     .verborgen { display:none !important; }
     #login-scherm { display:none; max-width:480px; margin:0 auto; }
@@ -84,10 +84,8 @@
   <nav>
     <button data-tab="home" class="actief" onclick="toonTab('home')">🏠 Home</button>
     <button data-tab="vandaag" onclick="toonTab('vandaag')">📋 Vandaag</button>
-    <button data-tab="oefeningen" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
     <button data-tab="voortgang" onclick="toonTab('voortgang')">📈 Voortgang</button>
     <button data-tab="records" onclick="toonTab('records')">🏅 PR's</button>
-    <button data-tab="account" onclick="toonTab('account')">👤 Account</button>
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -522,6 +520,7 @@
       <button class="ghost" style="width:100%;margin-top:10px" onclick="laadGebruikers()">Gebruikers laden</button>
       <div id="admin-lijst" style="margin-top:12px"></div>` : '';
     document.getElementById('tab-account').innerHTML = `
+      <button class="mini" onclick="toonTab('home')" style="margin-bottom:10px">‹ Home</button>
       <h1>Account</h1>
       <div class="kaart" style="margin-top:12px">
         <div class="grijs">Ingelogd als</div>
@@ -1060,6 +1059,10 @@
          <p class="sub">Klaar voor je training?</p>`;
 
     document.getElementById('tab-home').innerHTML = `
+      <div class="rij" style="justify-content:flex-end;gap:6px;margin-bottom:12px">
+        <button class="mini" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
+        <button class="mini" onclick="toonTab('account')">👤 Account</button>
+      </div>
       <div class="kaart" style="border-left:3px solid var(--paars);font-style:italic;color:var(--tekst);margin-bottom:16px">
         <div style="font-size:10px;color:var(--grijs);font-style:normal;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Quote van de dag</div>
         “${escapeHtml(quoteVanDeDag())}”
@@ -1447,6 +1450,7 @@
     }
     const groepChips = SPIERGROEPEN.map(g => `<span class="chip" data-groep="${g}" onclick="toggleChip(this)">${g}</span>`).join(' ');
     document.getElementById('tab-oefeningen').innerHTML = `
+      <button class="mini" onclick="toonTab('home')" style="margin-bottom:10px">‹ Home</button>
       <h1>Oefeningen</h1>
       <p class="sub">Kies bij "Vandaag" uit deze lijst, of voeg hier je eigen oefening toe.</p>
       <div style="margin:14px 0">
