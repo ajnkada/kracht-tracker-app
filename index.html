@@ -237,7 +237,9 @@
   }
   // Elk woord met een hoofdletter beginnen (rest onaangeroerd): "lat pulldown" -> "Lat Pulldown".
   function netteNaam(naam) {
-    return String(naam).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+    const HERNOEM = { 'Schouderpers': 'Shoulder Press' };
+    const n = String(naam).trim().replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+    return HERNOEM[n] || n;
   }
   // ===== LOGIC END =====
   let geselecteerdeOefeningId = null;
@@ -277,7 +279,7 @@
     { naam: 'Romanian deadlift', spiergroepen: ['Billen','Rug','Benen'] },
     { naam: 'Bulgarian split squat', spiergroepen: ['Billen','Benen'] },
     { naam: 'Glute bridge', spiergroepen: ['Billen'] },
-    { naam: 'Schouderpers', spiergroepen: ['Schouders','Tricep'] },
+    { naam: 'Shoulder Press', spiergroepen: ['Schouders','Tricep'] },
     { naam: 'Lateral raise', spiergroepen: ['Schouders'] },
     { naam: 'Front raise', spiergroepen: ['Schouders'] },
     { naam: 'Reverse fly', spiergroepen: ['Schouders','Rug'] },
