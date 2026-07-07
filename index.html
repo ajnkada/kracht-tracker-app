@@ -584,8 +584,12 @@
     }
 
     const alGekozen = sessie ? sessie.oefeningen.map(o => o.exerciseId) : [];
-    const opties = alleOef.filter(o => !alGekozen.includes(o.id))
-      .map(o => `<option value="${o.id}">${escapeHtml(o.naam)}${o.spiergroepen && o.spiergroepen.length ? ' — ' + escapeHtml(o.spiergroepen.join(', ')) : ''}</option>`).join('');
+    const beschikbaar = alleOef.filter(o => !alGekozen.includes(o.id));
+    const optieHtml = o => `<option value="${o.id}">${o.favoriet ? '★ ' : ''}${escapeHtml(o.naam)}${o.spiergroepen && o.spiergroepen.length ? ' — ' + escapeHtml(o.spiergroepen.join(', ')) : ''}</option>`;
+    const favs = beschikbaar.filter(o => o.favoriet).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+    const rest = beschikbaar.filter(o => !o.favoriet).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+    const opties = (favs.length ? `<optgroup label="★ Favorieten">${favs.map(optieHtml).join('')}</optgroup>` : '')
+      + (rest.length ? `<optgroup label="Alle oefeningen">${rest.map(optieHtml).join('')}</optgroup>` : '');
     const picker = opties ? `
       <div class="rij" style="gap:8px;margin-top:8px">
         <select id="oefening-keuze" style="flex:1">${opties}</select>
