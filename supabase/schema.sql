@@ -20,8 +20,10 @@ create table if not exists public.exercises (
   spiergroepen text[] not null default '{}',
   type         text not null default 'reps' check (type in ('reps','tijd')),
   doel         numeric,
+  favoriet     boolean not null default false,
   created_at   timestamptz not null default now()
 );
+alter table public.exercises add column if not exists favoriet boolean not null default false;
 
 create table if not exists public.sessions (
   id         uuid primary key default gen_random_uuid(),

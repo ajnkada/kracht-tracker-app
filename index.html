@@ -39,6 +39,7 @@
     .badge { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--paars); font-size:11px; padding:1px 8px; border-radius:999px; vertical-align:middle; }
     .chip { display:inline-block; background:#0b1220; border:1px solid var(--line); color:var(--grijs); font-size:12px; padding:5px 11px; border-radius:999px; cursor:pointer; user-select:none; }
     .chip.aan { background:var(--paars); color:#1a1030; border-color:var(--paars); }
+    .ster { background:none; border:none; cursor:pointer; font-size:16px; padding:0 2px; vertical-align:middle; }
     .progtabel { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
     .progtabel th { text-align:left; color:var(--grijs); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.03em; padding:4px 6px; border-bottom:1px solid var(--line); }
     .progtabel td { padding:6px; border-bottom:1px solid #1e293b; }
@@ -326,9 +327,14 @@
     const rows = arr.map(o => ({
       id: o.id, user_id: uid, naam: o.naam,
       spiergroepen: o.spiergroepen || [], type: o.type || 'reps',
-      doel: (o.doel === undefined ? null : o.doel)
+      doel: (o.doel === undefined ? null : o.doel), favoriet: !!o.favoriet
     }));
-    sb.from('exercises').upsert(rows).then(({ error }) => { if (error) meldOpslagfout(error); });
+    sb.from('exercises').upsert(rows).then(({ error }) => {
+      if (!error) return;
+      // Ontbreekt de favoriet-kolom nog? Bewaar dan tenminste de rest.
+      const basis = arr.map(o => ({ id: o.id, user_id: uid, naam: o.naam, spiergroepen: o.spiergroepen || [], type: o.type || 'reps', doel: (o.doel === undefined ? null : o.doel) }));
+      sb.from('exercises').upsert(basis).then(({ error: e2 }) => { if (e2) meldOpslagfout(e2); });
+    });
   }
 
   function bewaarSessies(arr) {
@@ -355,7 +361,7 @@
     if (sessRes.error) meldOpslagfout(sessRes.error);
     const origNamen = new Map((oefRes.data || []).map(r => [r.id, r.naam]));
     const rauw = (oefRes.data || []).map(r => {
-      const o = { id: r.id, naam: netteNaam(r.naam), spiergroepen: r.spiergroepen || [], type: r.type || 'reps' };
+      const o = { id: r.id, naam: netteNaam(r.naam), spiergroepen: r.spiergroepen || [], type: r.type || 'reps', favoriet: !!r.favoriet };
       if (r.doel !== null && r.doel !== undefined) o.doel = Number(r.doel);
       return o;
     });
@@ -814,14 +820,15 @@
     const lijst = laadOefeningen();
     const kaartHtml = o => `
       <div class="kaart rij">
-        <span>💪 ${escapeHtml(o.naam)} ${badgesHtml(o.spiergroepen)}${o.type === 'tijd' ? ' <span class="badge" style="color:var(--accent)">⏱️ tijd</span>' : ''}</span>
+        <span><button class="ster" onclick="toggleFavoriet('${o.id}')" aria-label="favoriet" style="color:${o.favoriet ? '#f59e0b' : 'var(--grijs)'}">${o.favoriet ? '★' : '☆'}</button> 💪 ${escapeHtml(o.naam)} ${badgesHtml(o.spiergroepen)}${o.type === 'tijd' ? ' <span class="badge" style="color:var(--accent)">⏱️ tijd</span>' : ''}</span>
         <button class="gevaar mini" onclick="verwijderOefening('${o.id}')">verwijderen</button>
       </div>`;
-    // Groepeer op de eerste spiergroep; kopjes in vaste volgorde, alfabetisch daarbinnen.
+    // Groepeer op eerste spiergroep; favorieten bovenaan, daarna alfabetisch.
     const groepVan = o => (o.spiergroepen && o.spiergroepen[0]) || 'Overig';
     let items = '';
     for (const g of [...SPIERGROEPEN, 'Overig']) {
-      const inGroep = lijst.filter(o => groepVan(o) === g).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+      const inGroep = lijst.filter(o => groepVan(o) === g).sort((a, b) =>
+        (!!a.favoriet !== !!b.favoriet) ? (a.favoriet ? -1 : 1) : a.naam.localeCompare(b.naam, 'nl'));
       if (inGroep.length === 0) continue;
       items += `<h2 style="font-size:14px;color:var(--paars);margin:18px 0 8px">${escapeHtml(g)}</h2>` + inGroep.map(kaartHtml).join('');
     }
@@ -845,6 +852,15 @@
       </div>
       ${items || '<p class="grijs">Nog geen oefeningen.</p>'}
     `;
+  }
+
+  function toggleFavoriet(id) {
+    const lijst = laadOefeningen();
+    const o = lijst.find(x => x.id === id);
+    if (!o) return;
+    o.favoriet = !o.favoriet;
+    bewaarOefeningen(lijst);
+    renderOefeningen();
   }
 
   function voegEigenOefeningToe() {
