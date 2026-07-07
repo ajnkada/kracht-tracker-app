@@ -30,7 +30,7 @@
     .stat b { font-size:18px; }
     .stat span { font-size:10px; color:var(--grijs); }
     nav { position: fixed; bottom:0; left:0; right:0; background:#0b1220; border-top:1px solid var(--line); display:flex; }
-    nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:12px 4px; font-size:12px; }
+    nav button { flex:1; background:transparent; color:var(--grijs); border:none; border-radius:0; padding:10px 2px; font-size:10px; line-height:1.3; }
     nav button.actief { color: var(--accent); }
     .verborgen { display:none !important; }
     #login-scherm { display:none; max-width:480px; margin:0 auto; }
@@ -69,7 +69,8 @@
   </div>
 
   <main>
-    <section id="tab-vandaag" class="scherm"></section>
+    <section id="tab-home" class="scherm"></section>
+    <section id="tab-vandaag" class="scherm verborgen"></section>
     <section id="tab-oefeningen" class="scherm verborgen"></section>
     <section id="tab-voortgang" class="scherm verborgen"></section>
     <section id="tab-records" class="scherm verborgen"></section>
@@ -81,7 +82,8 @@
   <div id="opslag-fout" class="verborgen"></div>
 
   <nav>
-    <button data-tab="vandaag" class="actief" onclick="toonTab('vandaag')">📋 Vandaag</button>
+    <button data-tab="home" class="actief" onclick="toonTab('home')">🏠 Home</button>
+    <button data-tab="vandaag" onclick="toonTab('vandaag')">📋 Vandaag</button>
     <button data-tab="oefeningen" onclick="toonTab('oefeningen')">💪 Oefeningen</button>
     <button data-tab="voortgang" onclick="toonTab('voortgang')">📈 Voortgang</button>
     <button data-tab="records" onclick="toonTab('records')">🏅 PR's</button>
@@ -458,6 +460,7 @@
     for (const b of document.querySelectorAll('nav button')) {
       b.classList.toggle('actief', b.dataset.tab === naam);
     }
+    if (naam === 'home') renderHome();
     if (naam === 'vandaag') renderVandaag();
     if (naam === 'oefeningen') renderOefeningen();
     if (naam === 'voortgang') renderVoortgang();
@@ -529,6 +532,106 @@
 
   function datumKort(iso) {
     return new Date(iso + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+  }
+
+  // Maandag (ISO) van de week waarin `iso` valt — lokaal, geen tijdzone-verschuiving.
+  function maandagVan(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    const dag = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dag);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function renderHome() {
+    const sessies = laadSessies();
+    const oef = laadOefeningen();
+    const dezeMaandag = maandagVan(vandaagISO());
+    const vorigeMaandag = verschuifDatum(dezeMaandag, -7);
+    const inWeek = (datum, ma) => datum >= ma && datum < verschuifDatum(ma, 7);
+
+    const sessDeze = sessies.filter(s => s.oefeningen.length && inWeek(s.datum, dezeMaandag));
+    const sessVorige = sessies.filter(s => s.oefeningen.length && inWeek(s.datum, vorigeMaandag));
+    const volDeze = sessDeze.reduce((a, s) => a + sessieTotalen(s).volume, 0);
+    const volVorige = sessVorige.reduce((a, s) => a + sessieTotalen(s).volume, 0);
+    const volDelta = volVorige > 0 ? Math.round((volDeze / volVorige - 1) * 100) : null;
+
+    // PR-momenten verzamelen (1RM + zwaarste gewicht)
+    const prEvents = [];
+    for (const e of oef) {
+      for (const p of progressieVoorOefening(sessies, e.id)) {
+        if (p.isPR) prEvents.push({ datum: p.datum, naam: e.naam, tekst: `${formatKg(p.e1rm)} kg 1RM` });
+        if (p.isGewichtPR) prEvents.push({ datum: p.datum, naam: e.naam, tekst: `${formatKg(p.gewicht)} kg` });
+      }
+    }
+    prEvents.sort((a, b) => a.datum < b.datum ? 1 : -1);
+    const prsDeze = prEvents.filter(e => inWeek(e.datum, dezeMaandag)).length;
+
+    // Streak: aaneengesloten weken met minstens één training
+    const weken = new Set(sessies.filter(s => s.oefeningen.length).map(s => maandagVan(s.datum)));
+    let streak = 0;
+    let w = weken.has(dezeMaandag) ? dezeMaandag : (weken.has(vorigeMaandag) ? vorigeMaandag : null);
+    while (w && weken.has(w)) { streak++; w = verschuifDatum(w, -7); }
+
+    // Volume per spiergroep (deze week), op eerste spiergroep
+    const perGroep = {};
+    for (const s of sessDeze) for (const o of s.oefeningen) {
+      const ex = oef.find(x => x.id === o.exerciseId); if (!ex) continue;
+      const g = (ex.spiergroepen && ex.spiergroepen[0]) || 'Overig';
+      let v = 0; for (const st of o.sets) if (st.kg !== undefined && st.reps !== undefined) v += st.kg * st.reps;
+      if (v > 0) perGroep[g] = (perGroep[g] || 0) + v;
+    }
+    const groepen = Object.entries(perGroep).sort((a, b) => b[1] - a[1]);
+    const maxG = groepen.length ? groepen[0][1] : 1;
+
+    const sjablonen = cacheTemplates.map(t => `<button class="mini" style="margin:0 6px 6px 0" onclick="laadTemplateInSessie('${t.id}');toonTab('vandaag')">▶ ${escapeHtml(t.naam)}</button>`).join('');
+
+    const gesorteerd = sessies.filter(s => s.oefeningen.length).slice().sort((a, b) => a.datum < b.datum ? 1 : -1);
+    const laatste = gesorteerd[0];
+    let laatsteHtml = '';
+    if (laatste) {
+      const t = sessieTotalen(laatste);
+      const duur = (laatste.start && laatste.eind) ? formatDuur(new Date(laatste.eind).getTime() - new Date(laatste.start).getTime()) : null;
+      laatsteHtml = `<div class="kaart">
+        <div class="rij"><b>Laatste training</b><span class="grijs">${datumKort(laatste.datum)}</span></div>
+        <div class="rij grijs" style="margin-top:6px;padding:2px 0"><span>oefeningen</span><span>${laatste.oefeningen.length}</span></div>
+        <div class="rij grijs" style="padding:2px 0"><span>totaal gewicht</span><span>${formatKg(t.volume)} kg</span></div>
+        <div class="rij grijs" style="padding:2px 0"><span>herhalingen</span><span>${t.reps}</span></div>
+        ${duur ? `<div class="rij grijs" style="padding:2px 0"><span>duur</span><span>${duur}</span></div>` : ''}
+      </div>`;
+    }
+
+    const groet = huidigeGebruiker && huidigeGebruiker.email ? huidigeGebruiker.email.split('@')[0] : '';
+
+    document.getElementById('tab-home').innerHTML = `
+      <h1>Hoi${groet ? ' ' + escapeHtml(groet) : ''} 👋</h1>
+      <p class="sub">Klaar voor je training?</p>
+      <button class="ghost" style="width:100%;margin-top:10px;color:var(--groen);border-color:var(--groen)" onclick="startTraining();toonTab('vandaag')">▶ Start training</button>
+      ${sjablonen ? `<div style="margin-top:12px"><div style="font-size:11px;color:var(--grijs);margin-bottom:6px">Snelstart met een sjabloon</div>${sjablonen}</div>` : ''}
+
+      <h2 style="font-size:16px;margin-top:22px">Deze week</h2>
+      <div class="rij" style="gap:8px;margin-top:8px">
+        <div class="stat"><b>${sessDeze.length}</b><br><span>trainingen</span></div>
+        <div class="stat"><b>${formatKg(volDeze)}</b><br><span>kg volume</span></div>
+        <div class="stat"><b>${prsDeze}</b><br><span>PR's 🏅</span></div>
+      </div>
+      <div class="grijs" style="margin-top:8px;font-size:13px">
+        ${volDelta === null ? '' : `<span style="color:${volDelta >= 0 ? 'var(--groen)' : '#f87171'}">${volDelta >= 0 ? '▲ +' : '▼ '}${volDelta}%</span> t.o.v. vorige week · `}🔥 ${streak} ${streak === 1 ? 'week' : 'weken'} op rij
+      </div>
+
+      ${prEvents.length ? `
+      <h2 style="font-size:16px;margin-top:22px">Recente records 🏅</h2>
+      <div style="margin-top:8px">${prEvents.slice(0, 5).map(e => `<div class="rij grijs" style="padding:4px 0"><span>🏅 ${escapeHtml(e.naam)} — ${e.tekst}</span><span>${datumKort(e.datum)}</span></div>`).join('')}</div>` : ''}
+
+      ${groepen.length ? `
+      <h2 style="font-size:16px;margin-top:22px">Volume per spiergroep (deze week)</h2>
+      <div style="margin-top:8px">${groepen.map(([g, v]) => `
+        <div style="margin-bottom:8px">
+          <div class="rij grijs" style="font-size:12px"><span>${escapeHtml(g)}</span><span>${formatKg(v)} kg</span></div>
+          <div style="background:#0b1220;border-radius:6px;height:8px;overflow:hidden;margin-top:3px"><div style="background:var(--paars);height:100%;width:${Math.round(v / maxG * 100)}%"></div></div>
+        </div>`).join('')}</div>` : ''}
+
+      ${laatsteHtml ? `<div style="margin-top:22px">${laatsteHtml}</div>` : ''}
+    `;
   }
 
   function renderVandaag() {
@@ -1242,7 +1345,7 @@
     await laadRol();            // gebruiker of admin?
     await laadAllesUitCloud();  // data van deze gebruiker uit de cloud
     zaaiStartlijst();           // eerste keer: startlijst met 42 oefeningen
-    renderVandaag();
+    renderHome();               // dashboard als startscherm
   }
 
   sb.auth.onAuthStateChange((event, session) => {
